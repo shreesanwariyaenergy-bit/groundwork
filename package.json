@@ -1,0 +1,13 @@
+{
+  "name": "groundwork",
+  "private": true,
+  "packageManager": "pnpm@10.28.0",
+  "scripts": {
+    "dev:web": "pnpm --filter web dev",
+    "dev:mobile": "pnpm --filter mobile start",
+    "build:web": "pnpm --filter web build",
+    "typecheck": "pnpm -r typecheck",
+    "test": "pnpm --filter @groundwork/shared test",
+    "db:test": "bash supabase/tests/run-local.sh"
+  }
+}
