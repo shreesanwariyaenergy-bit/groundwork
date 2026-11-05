@@ -16,3 +16,4 @@ service-account*.json
 .vercel
 supabase/.temp/
 coverage/
+play-service-account.json
