@@ -49,8 +49,12 @@ to authenticated;
 
 grant execute on function public.submit_deletion_request(text, text) to anon;
 
+-- Server-side code (Edge Functions with the service-role key) may call anything.
+grant execute on all functions in schema public to service_role;
+
 -- Keep future functions closed by default too.
 alter default privileges in schema public revoke execute on functions from public, anon, authenticated;
+alter default privileges in schema public grant execute on functions to service_role;
 
 -- ---------------------------------------------------------------------------
 -- Reference data
