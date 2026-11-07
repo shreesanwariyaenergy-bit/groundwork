@@ -110,3 +110,25 @@ redesign (Android keeps working unchanged; its Quick Validate comes later), prod
 
 **Migration requirements:** one additive migration (no drops of tables/columns, no data rewrites). Requires
 approval to apply to the live project, plus approval to deploy `think-quick`.
+
+---
+
+## G. Phase 1 status (branch `think-first`)
+
+| Item | Status |
+|---|---|
+| Assessment + four-pillar architecture | Done (`docs/THINK_FIRST_ASSESSMENT.md`, `docs/ECOSYSTEM_ARCHITECTURE.md`) |
+| Additive migration `20261107000001_think_first_foundation.sql` | Written + tested locally (SQL suite incl. new `30_think_first.sql`). **Not applied to live DB.** |
+| Edge function `think-quick` | Written + type-checked. **Not deployed.** |
+| Think-first homepage, `/validate`, report view, assumptions summary | Done; browser-tested (desktop + mobile) with the real report code via network interception |
+| Email-first registration (magic link) + login magic link | Done; requires Supabase Site URL / redirect URLs + SMTP domain |
+| Claim after registration | Done (client + RPC); RPC tested in SQL; end-to-end requires the migration |
+| Navigation, Connect gating, Think-first home, onboarding skippable | Done; type-checked/built, **not visually tested signed-in** (no staging auth) |
+| Android | Unchanged; still bundles |
+
+### Approvals needed before this reaches production
+1. Apply migration `20261107000001` to the live project (additive; reviewed above).
+2. Deploy edge function `think-quick` with `verify_jwt = false`; optionally set secret `QUICK_VALIDATE_SALT`.
+3. Merge `think-first` → `main` (deploys the website to production).
+Until 1–2 are approved, Quick Validate on the preview shows "not available right now"; the rest of the preview works
+against the existing schema (new columns are only read where present).
