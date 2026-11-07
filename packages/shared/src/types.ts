@@ -179,6 +179,8 @@ export interface ThinkProject {
   title: string;
   idea: string;
   context: ThinkContext;
+  startup_project_id: string | null;
+  source: 'workspace' | 'quick_validate';
   archived: boolean;
   created_at: string;
   updated_at: string;
@@ -190,6 +192,7 @@ export interface ThinkAnalysis {
   owner_id: string;
   status: 'running' | 'completed' | 'failed';
   mode: 'ai' | 'checklist';
+  report_kind: 'full' | 'quick';
   provider: string | null;
   model: string | null;
   report: ThinkReport | null;

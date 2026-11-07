@@ -124,6 +124,12 @@ export const ERROR_MESSAGES: Record<string, string> = {
   quota_exceeded: 'You have reached today’s Think limit. It resets at midnight UTC.',
   ai_unavailable: 'AI analysis is unavailable right now. You can use the basic checklist instead.',
   ai_disclosure_required: 'Please review how Think processes your idea before continuing.',
+  idea_too_short: 'Describe the idea in at least a sentence or two (30+ characters).',
+  idea_too_long: 'Please keep the description under 2,000 characters.',
+  quick_limit: 'You have used today’s free quick validations on this connection. Create a free account to keep going.',
+  quick_busy: 'Quick Validate is very busy right now. Please try again later, or create a free account.',
+  quick_unavailable: 'Quick Validate is not available right now. Please try again shortly.',
+  quick_report_not_found: 'That quick report has expired or was already saved.',
 };
 
 export function friendlyError(err: unknown): string {

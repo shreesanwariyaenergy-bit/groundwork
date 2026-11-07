@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { ReportReason, StartupStage, Availability, UserIntent, WorkMode } from './constants.ts';
+import type { QuickInputs, ThinkReport } from './think.ts';
 import type {
   ConnectionRequestRow, ConnectionRow, ConversationRow, Message, Notification, ProfileCard, RecommendationCard,
   SearchFilters, ThinkAnalysis, ThinkMessage, ThinkProject, ThinkStatus, Role, Industry, Skill, SkillCategory,
@@ -196,6 +197,23 @@ export function createApi(sb: SupabaseClient) {
         throw new ApiError(code, code);
       }
       return data as { analysis?: ThinkAnalysis; message?: ThinkMessage };
+    },
+    /** Anonymous Quick Validate (public site). Returns the report and a one-time claim token. */
+    async quickValidate(inputs: QuickInputs): Promise<{ token: string | null; report: ThinkReport; expires_at: string | null; mode: 'ai' | 'checklist' }> {
+      const { data, error } = await sb.functions.invoke('think-quick', { body: inputs });
+      if (error) {
+        let code = 'quick_unavailable';
+        try {
+          const ctx = (error as unknown as { context?: Response }).context;
+          if (ctx && typeof ctx.json === 'function') code = ((await ctx.json()) as { error?: string }).error ?? code;
+        } catch { /* ignore */ }
+        throw new ApiError(code, code);
+      }
+      return data as { token: string | null; report: ThinkReport; expires_at: string | null; mode: 'ai' | 'checklist' };
+    },
+    /** Attach an anonymous Quick Validate report to the signed-in user; returns the new Think project id. */
+    async claimQuickReport(token: string): Promise<string> {
+      return unwrap(await sb.rpc('claim_quick_report', { p_token: token })) as string;
     },
     async acknowledgeAiDisclosure() {
       const { data: auth } = await sb.auth.getUser();
