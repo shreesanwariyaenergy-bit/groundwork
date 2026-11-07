@@ -1,5 +1,6 @@
 /**
- * Quick Validate — anonymous, 5-section preliminary report for the public site.
+ * Quick Validate — anonymous, FREE 7-parameter assessment for the public site.
+ * (Earlier versions returned a 5-section quick report; those stored reports still render.)
  *   POST { idea, customer?, alternatives?, stage? }  →  { token, report, expires_at, mode }
  *
  * Deployed with verify_jwt = false (visitors are not signed in). Safeguards:
@@ -13,11 +14,13 @@
  */
 import { admin } from '../_shared/clients.ts';
 import { json, preflight } from '../_shared/http.ts';
-import { approxTokens, complete, ProviderError, type ProviderConfig } from '../_shared/ai.ts';
-import { buildQuickGuidedReport, buildQuickPrompt, extractJson, normalizeReport, sanitizeQuickInputs, type ThinkReport } from '../_shared/think.ts';
+import { approxTokens, complete, ProviderError } from '../_shared/ai.ts';
+import { extractJson, sanitizeQuickInputs, type ThinkReport } from '../_shared/think.ts';
+import { ASSESSMENT_PARAMETERS, buildAssessmentPrompt, buildGuidedAssessment, normalizeAssessment } from '../_shared/assessment.ts';
+import { diag, logUsage, providersFor, type ProviderChoice } from '../_shared/thinkcore.ts';
 
 const SALT = Deno.env.get('QUICK_VALIDATE_SALT') ?? Deno.env.get('SUPABASE_URL') ?? 'groundwork';
-const AI_TIMEOUT_MS = 40_000;
+const AI_TIMEOUT_MS = 90_000;
 
 async function sha256Hex(input: string): Promise<string> {
   const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(input));
@@ -32,33 +35,6 @@ function newToken(): string {
 function clientIp(req: Request): string {
   return (req.headers.get('x-forwarded-for') ?? '').split(',')[0]!.trim()
     || req.headers.get('cf-connecting-ip') || req.headers.get('x-real-ip') || 'unknown';
-}
-
-/** Free, enabled providers with headroom under their own per-minute and per-day caps. */
-async function freeProviders(): Promise<ProviderConfig[]> {
-  const { data: flag } = await admin.from('feature_flags').select('enabled').eq('key', 'think.ai_enabled').maybeSingle();
-  if (!flag?.enabled) return [];
-  const { data } = await admin.from('ai_provider_configs').select('*').eq('is_enabled', true).eq('is_paid', false).order('priority');
-  const out: ProviderConfig[] = [];
-  const dayStart = new Date(); dayStart.setUTCHours(0, 0, 0, 0);
-  const minuteAgo = new Date(Date.now() - 60_000).toISOString();
-  for (const cfg of (data ?? []) as ProviderConfig[]) {
-    const [{ count: perMin }, { count: perDay }] = await Promise.all([
-      admin.from('ai_usage_logs').select('id', { count: 'exact', head: true }).eq('provider_config_id', cfg.id).gte('created_at', minuteAgo),
-      admin.from('ai_usage_logs').select('id', { count: 'exact', head: true }).eq('provider_config_id', cfg.id)
-        .gte('created_at', dayStart.toISOString()).in('status', ['success', 'error']),
-    ]);
-    if ((perMin ?? 0) < cfg.requests_per_minute && (perDay ?? 0) < cfg.daily_request_limit) out.push(cfg);
-  }
-  return out;
-}
-
-async function log(status: string, cfg: ProviderConfig | null, extra: { input_tokens?: number; output_tokens?: number; latency_ms?: number; error_code?: string } = {}) {
-  await admin.from('ai_usage_logs').insert({
-    user_id: null, provider_config_id: cfg?.id ?? null, provider: cfg?.provider ?? null, model: cfg?.model ?? null,
-    feature: 'think_quick', status, input_tokens: extra.input_tokens ?? 0, output_tokens: extra.output_tokens ?? 0,
-    estimated_cost_usd: 0, latency_ms: extra.latency_ms ?? null, error_code: extra.error_code ?? null,
-  });
 }
 
 Deno.serve(async (req) => {
@@ -84,41 +60,43 @@ Deno.serve(async (req) => {
   if (rl === 'client_limit') return json(req, 429, { error: 'quick_limit' });
   if (rl === 'global_limit') return json(req, 429, { error: 'quick_busy' });
 
-  // AI first (free providers only), otherwise the guided non-AI report.
+  // AI first (FREE providers only for anonymous traffic), otherwise the guided non-AI assessment.
   let report: ThinkReport | null = null;
-  let used: ProviderConfig | null = null;
-  const providers = await freeProviders();
+  let used: ProviderChoice | null = null;
+  const providers = await providersFor('assessment', { freeOnly: true });
   if (providers.length) {
-    const prompt = buildQuickPrompt(inputs);
-    for (const cfg of providers.slice(0, 2)) {
+    const prompt = buildAssessmentPrompt(inputs);
+    for (const choice of providers.slice(0, 2)) {
       try {
-        const res = await complete({ ...cfg, timeout_ms: Math.min(cfg.timeout_ms, AI_TIMEOUT_MS) },
-          { system: prompt.system, messages: [{ role: 'user', content: prompt.user }], json: true, maxOutputTokens: 2048 });
-        const raw = extractJson(res.text) as { sections?: unknown[] };
-        if (!Array.isArray(raw.sections) || raw.sections.length < 3) throw new SyntaxError('incomplete_report');
-        report = normalizeReport(raw, { generatedBy: 'ai', kind: 'quick' });
-        used = cfg;
-        await log('success', cfg, {
-          input_tokens: res.inputTokens || approxTokens(prompt.system + prompt.user),
-          output_tokens: res.outputTokens || approxTokens(res.text), latency_ms: res.latencyMs,
+        const res = await complete({ ...choice.cfg, timeout_ms: Math.max(choice.cfg.timeout_ms, AI_TIMEOUT_MS) },
+          { system: prompt.system, messages: [{ role: 'user', content: prompt.user }], json: true, maxOutputTokens: 8192, model: choice.model, reasoning: 'medium' });
+        const raw = extractJson(res.text) as { parameters?: unknown[] };
+        if (!Array.isArray(raw.parameters) || raw.parameters.length < ASSESSMENT_PARAMETERS.length - 1) throw new SyntaxError('incomplete_assessment');
+        report = normalizeAssessment(raw, { generatedBy: 'ai' });
+        used = { ...choice, model: res.model };
+        await logUsage({
+          user_id: null, feature: 'think_quick', status: 'success', choice: used, latency_ms: res.latencyMs,
+          input_tokens: res.inputTokens || approxTokens(prompt.system + prompt.user), output_tokens: res.outputTokens || approxTokens(res.text),
         });
         break;
       } catch (e) {
         const code = e instanceof ProviderError ? e.code : 'provider_bad_output';
-        await log(code === 'provider_rate_limited' ? 'rate_limited' : 'error', cfg, { error_code: code });
+        const detail = e instanceof ProviderError ? e.detail : undefined;
+        await logUsage({ user_id: null, feature: 'think_quick', status: code === 'provider_rate_limited' ? 'rate_limited' : 'error', choice, error_code: detail ? `${code}: ${detail}` : code });
+        diag('think-quick', { provider: choice.cfg.key, model: choice.model, code });
       }
     }
   }
   if (!report) {
-    report = buildQuickGuidedReport(inputs);
-    await log('success', null, { error_code: providers.length ? 'fallback_guided' : 'guided' });
+    report = buildGuidedAssessment(inputs);
+    if (!providers.length) await logUsage({ user_id: null, feature: 'think_quick', status: 'disabled', error_code: 'guided' });
   }
 
   const token = newToken();
   const expires = new Date(Date.now() + 7 * 24 * 3600 * 1000).toISOString();
   const { error: insErr } = await admin.from('think_quick_reports').insert({
     claim_token_hash: await sha256Hex(token), inputs, report, mode: used ? 'ai' : 'checklist',
-    provider: used?.provider ?? null, model: used?.model ?? null, client_hash: clientHash, expires_at: expires,
+    provider: used?.cfg.provider ?? null, model: used?.model ?? null, client_hash: clientHash, expires_at: expires,
   });
   if (insErr) {
     console.error(JSON.stringify({ fn: 'think-quick', code: 'store_failed' }));

@@ -8,6 +8,8 @@
   "exports": {
     ".": "./src/index.ts",
     "./think": "./src/think.ts",
+    "./assessment": "./src/assessment.ts",
+    "./deep": "./src/deep.ts",
     "./tokens": "./src/tokens.ts"
   },
   "scripts": {

@@ -27,8 +27,8 @@ function ThinkList() {
       {status.data && (
         <p className="mb-5 text-sm text-muted">
           {status.data.ai_available
-            ? <>AI analyses today: {status.data.analyses_used_today}/{status.data.analyses_per_day} · Follow-ups: {status.data.followups_used_today}/{status.data.followups_per_day}</>
-            : <>AI analysis is currently unavailable. You can still create projects and use the basic checklist.</>}
+            ? <>Free assessments today: {status.data.assessments_used_today ?? 0}/{status.data.assessments_per_day ?? 5} · Follow-ups: {status.data.followups_used_today}/{status.data.followups_per_day}</>
+            : <>AI is currently unavailable. You can still create projects and get a guided assessment.</>}
         </p>
       )}
       {loading ? <Skeleton className="h-40" /> : error ? <ErrorState message={friendlyError(error)} onRetry={reload} /> : !data?.length ? (

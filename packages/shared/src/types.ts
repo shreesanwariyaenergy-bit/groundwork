@@ -192,7 +192,10 @@ export interface ThinkAnalysis {
   owner_id: string;
   status: 'running' | 'completed' | 'failed';
   mode: 'ai' | 'checklist';
-  report_kind: 'full' | 'quick';
+  report_kind: 'full' | 'quick' | 'assessment' | 'deep';
+  /** Staged Deep Analysis progress (stage, failures, last_error). */
+  progress: { stage?: string; failures?: number; last_error?: string | null } | null;
+  input_snapshot?: Record<string, unknown>;
   provider: string | null;
   model: string | null;
   report: ThinkReport | null;
@@ -219,6 +222,17 @@ export interface ThinkStatus {
   followups_used_today: number;
   followups_per_day: number;
   disclosure_acknowledged: boolean;
+  // phase 2 (absent on older backends)
+  assessments_used_today?: number;
+  assessments_per_day?: number;
+  provider_is_free?: boolean;
+  deep?: {
+    enabled: boolean;
+    payments_enabled: boolean;
+    price_label: string | null;
+    entitlements_available: number;
+    research_enabled: boolean;
+  };
 }
 
 export interface SearchFilters {

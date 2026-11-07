@@ -6,7 +6,9 @@ import { fileURLToPath } from 'node:url';
 const here = dirname(fileURLToPath(import.meta.url));
 const target = resolve(here, '../../../supabase/functions/_shared');
 mkdirSync(target, { recursive: true });
-const src = readFileSync(resolve(here, '../src/think.ts'), 'utf8');
-writeFileSync(resolve(target, 'think.ts'),
-  '// GENERATED from packages/shared/src/think.ts — do not edit here. Run `pnpm --filter @groundwork/shared sync:functions`.\n' + src);
-console.log('synced think.ts →', target);
+for (const file of ['think.ts', 'assessment.ts', 'deep.ts']) {
+  const src = readFileSync(resolve(here, '../src', file), 'utf8');
+  writeFileSync(resolve(target, file),
+    `// GENERATED from packages/shared/src/${file} — do not edit here. Run \`pnpm --filter @groundwork/shared sync:functions\`.\n` + src);
+  console.log(`synced ${file} →`, target);
+}

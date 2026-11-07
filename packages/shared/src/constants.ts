@@ -130,7 +130,30 @@ export const ERROR_MESSAGES: Record<string, string> = {
   quick_busy: 'Quick Validate is very busy right now. Please try again later, or create a free account.',
   quick_unavailable: 'Quick Validate is not available right now. Please try again shortly.',
   quick_report_not_found: 'That quick report has expired or was already saved.',
+  deep_unavailable: 'Deep Analysis is not available yet.',
+  deep_access_required: 'Deep Analysis needs access for this report. Purchasing is not live yet.',
+  deep_busy: 'Deep Analysis has reached today’s capacity. Please try again tomorrow.',
+  invalid_category: 'Choose the type of business.',
+  geography_required: 'Tell us where you plan to launch first.',
+  analysis_in_progress: 'A report is already being generated for this project.',
+  provider_rate_limited: 'The AI provider’s free quota is used up for now. Please try again later.',
+  provider_timeout: 'The AI provider took too long to respond. Please try again.',
+  provider_bad_output: 'The AI returned an incomplete answer. Please try again.',
+  provider_truncated: 'The AI answer was cut off. Please try again.',
 };
+
+/**
+ * Shown before any idea is sent to the AI provider. Reflects the actual provider terms for the
+ * configured provider (Google Gemini API, unpaid tier). Do not promise more confidentiality than this.
+ */
+export const AI_DISCLOSURE_GEMINI_FREE =
+  'Your idea is sent to Google’s Gemini API to generate the review. Groundwork currently uses Gemini’s free (unpaid) tier: under ' +
+  'Google’s terms for unpaid services, Google may use submitted content to improve its products, and human reviewers may read it. ' +
+  'Do not include confidential, personal or commercially sensitive details you are not comfortable sharing.';
+
+export const AI_DISCLOSURE_PAID =
+  'Your idea is sent to the configured AI provider to generate the review. Under the provider’s paid terms, prompts and responses ' +
+  'are not used to improve its products, but may be retained for a limited period for abuse monitoring.';
 
 export function friendlyError(err: unknown): string {
   const raw = err instanceof Error ? err.message : typeof err === 'object' && err && 'message' in err ? String((err as { message: unknown }).message) : String(err ?? '');

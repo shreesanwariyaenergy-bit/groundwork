@@ -3,6 +3,8 @@ export * from './countries.ts';
 export * from './timezones.ts';
 export * from './tokens.ts';
 export * from './think.ts';
+export * from './assessment.ts';
+export * from './deep.ts';
 export * from './types.ts';
 export * from './validation.ts';
 export * from './profile.ts';

@@ -1,7 +1,8 @@
 'use client';
 import { useEffect, useState } from 'react';
-import { EVIDENCE_LABELS, assumptionsSummary, labelCounts, type EvidenceLabel, type ThinkReport } from '@groundwork/shared';
+import { BUSINESS_CATEGORIES, EVIDENCE_LABELS, VERDICT_LABELS, assumptionsSummary, labelCounts, type EvidenceLabel, type ThinkReport, type ThinkTable } from '@groundwork/shared';
 import { Badge, cn } from '@/components/ui';
+import { AssessmentView } from './AssessmentView';
 
 export const LABEL_TONE: Record<EvidenceLabel, 'neutral' | 'accent' | 'warning' | 'danger'> = {
   verified: 'accent', estimate: 'warning', assumption: 'warning', hypothesis: 'neutral', recommendation: 'accent', question: 'neutral',
@@ -29,8 +30,59 @@ function useActiveSection(ids: string[]) {
   return active;
 }
 
+function SectionTable({ table }: { table: ThinkTable }) {
+  return (
+    <div className="mt-4 overflow-x-auto rounded-md border border-line">
+      <table className="w-full min-w-[32rem] border-collapse text-left text-sm">
+        <thead className="bg-surface text-xs text-muted">
+          <tr>{table.columns.map((c, i) => <th key={i} scope="col" className="px-3 py-2 font-medium">{c}</th>)}</tr>
+        </thead>
+        <tbody>
+          {table.rows.map((r, i) => (
+            <tr key={i} className="border-t border-line align-top">{r.map((c, j) => j === 0
+              ? <th key={j} scope="row" className="px-3 py-2 font-medium text-fg">{c}</th>
+              : <td key={j} className="px-3 py-2 text-fg">{c}</td>)}</tr>
+          ))}
+        </tbody>
+      </table>
+      {table.note && <p className="border-t border-line px-3 py-2 text-xs text-muted">{table.note}</p>}
+    </div>
+  );
+}
+
+function DeepHeader({ report }: { report: ThinkReport }) {
+  const d = report.deep!;
+  const cat = BUSINESS_CATEGORIES.find((c) => c.value === d.category)?.label ?? d.category;
+  return (
+    <div className="space-y-4">
+      {d.verdict && (
+        <section className="rounded-lg border border-accent/30 bg-accent-soft p-4 sm:p-5" aria-label="Recommendation">
+          <div className="text-xs font-medium uppercase tracking-wide text-muted">Recommendation</div>
+          <p className="mt-1 text-base font-semibold">{VERDICT_LABELS[d.verdict]}</p>
+          {d.verdict_summary && <p className="mt-1 text-sm leading-relaxed">{d.verdict_summary}</p>}
+          {d.differs_from_free && <p className="mt-3 border-t border-accent/20 pt-3 text-sm"><span className="font-medium">Compared with the free assessment:</span> {d.differs_from_free}</p>}
+        </section>
+      )}
+      <dl className="grid gap-3 text-sm sm:grid-cols-3">
+        <div className="rounded-md bg-surface px-3 py-2"><dt className="text-xs text-subtle">Business type</dt><dd>{cat}</dd></div>
+        <div className="rounded-md bg-surface px-3 py-2"><dt className="text-xs text-subtle">Launch geography</dt><dd>{d.answers.geography}</dd></div>
+        <div className="rounded-md bg-surface px-3 py-2"><dt className="text-xs text-subtle">Live research</dt>
+          <dd>{d.research.performed ? `${report.sources.length} sources retrieved` : 'Not available'}</dd></div>
+      </dl>
+      {!d.research.performed && <p className="rounded-md border border-warning/30 bg-warning-soft/60 px-4 py-3 text-sm">{d.research.limitation ?? 'Live research did not run.'} No point in this report is labelled Verified.</p>}
+      {d.skipped.length > 0 && <p className="text-sm text-muted">You skipped: {d.skipped.join(', ')}. Where these matter, the report states its assumption and labels it Assumption.</p>}
+    </div>
+  );
+}
+
 export function ReportView({ report, idPrefix = 'sec' }: { report: ThinkReport; idPrefix?: string }) {
+  if (report.kind === 'assessment' && report.assessment) return <AssessmentView report={report} idPrefix={idPrefix} />;
+  return <SectionReport report={report} idPrefix={idPrefix} />;
+}
+
+function SectionReport({ report, idPrefix }: { report: ThinkReport; idPrefix: string }) {
   const quick = report.kind === 'quick';
+  const deep = report.kind === 'deep' && Boolean(report.deep);
   const ids = report.sections.map((s) => `${idPrefix}-${s.key}`);
   const active = useActiveSection(ids);
   const bets = assumptionsSummary(report, quick ? 6 : 8);
@@ -41,11 +93,12 @@ export function ReportView({ report, idPrefix = 'sec' }: { report: ThinkReport; 
     <div className="space-y-6">
       {/* Header */}
       <div className="flex flex-wrap items-center gap-2 text-sm">
-        <Badge tone={quick ? 'warning' : 'neutral'}>{quick ? 'Preliminary · 5 sections' : `Full analysis · ${report.sections.length} sections`}</Badge>
+        <Badge tone={quick ? 'warning' : deep ? 'accent' : 'neutral'}>{quick ? 'Preliminary · 5 sections' : deep ? `Deep Analysis · ${report.sections.length} sections` : `Full analysis · ${report.sections.length} sections`}</Badge>
         <Badge tone={report.generated_by === 'ai' ? 'accent' : 'neutral'}>{report.generated_by === 'ai' ? 'AI-generated' : 'Guided · no AI'}</Badge>
         {report.overall_signal && <span className="text-muted">AI first impression: <strong className="text-fg">{SIGNAL_TEXT[report.overall_signal]}</strong></span>}
       </div>
       <p className="rounded-md bg-surface px-4 py-3 text-sm text-muted">{report.disclaimer}</p>
+      {deep && <DeepHeader report={report} />}
 
       {/* What you're betting on */}
       {bets.length > 0 && (
@@ -106,17 +159,33 @@ export function ReportView({ report, idPrefix = 'sec' }: { report: ThinkReport; 
                   {s.points.map((p, j) => (
                     <li key={j} className="flex flex-col gap-1 text-sm leading-relaxed sm:flex-row sm:gap-3">
                       <span className="shrink-0 sm:w-32 sm:pt-0.5"><Badge tone={LABEL_TONE[p.label]}>{EVIDENCE_LABELS[p.label].name}</Badge></span>
-                      <span className="text-fg">{p.text}</span>
+                      <span className="text-fg">{p.text}{p.source_ids?.length ? <> {p.source_ids.map((id) => <a key={id} href={`#${idPrefix}-src-${id}`} className="ml-1 text-xs text-accent underline">[{id}]</a>)}</> : null}</span>
                     </li>
                   ))}
                 </ul>
               )}
+              {s.table && <SectionTable table={s.table} />}
             </section>
           ))}
           {report.sources.length > 0 && (
-            <section className="border-t border-line pt-5">
-              <h3 className="text-base font-semibold">Sources</h3>
-              <ul className="mt-2 space-y-1 text-sm">{report.sources.map((s) => <li key={s.id}><a href={s.url} target="_blank" rel="noopener noreferrer" className="text-accent underline">{s.name}</a> <span className="text-subtle">retrieved {s.retrieved_at}</span></li>)}</ul>
+            <section className="border-t border-line pt-5" aria-labelledby={`${idPrefix}-sources`}>
+              <h3 id={`${idPrefix}-sources`} className="text-base font-semibold">Sources</h3>
+              <p className="mt-1 text-xs text-muted">Retrieved by web search while this report was generated. Open each source to confirm it says what is cited.</p>
+              <ol className="mt-3 space-y-2 text-sm">{report.sources.map((s) => (
+                <li key={s.id} id={`${idPrefix}-src-${s.id}`} className="scroll-mt-24">
+                  <span className="mr-2 text-xs font-medium text-subtle">{s.id}</span>
+                  <a href={s.url} target="_blank" rel="noopener noreferrer nofollow" className="text-accent underline">{s.name}</a>
+                  <span className="text-xs text-subtle"> · {s.published_at ? `published ${s.published_at} · ` : ''}retrieved {s.retrieved_at}</span>
+                  {s.finding && <div className="mt-0.5 text-xs text-muted">Supports: {s.finding}</div>}
+                </li>
+              ))}</ol>
+              {report.deep?.research.search_suggestions_html && (
+                <div className="mt-4">
+                  <div className="mb-1 text-xs text-subtle">Google Search suggestions</div>
+                  <iframe title="Google Search suggestions" sandbox="allow-popups allow-popups-to-escape-sandbox" srcDoc={report.deep.research.search_suggestions_html}
+                    className="h-24 w-full rounded-md border border-line bg-raised" />
+                </div>
+              )}
             </section>
           )}
         </div>

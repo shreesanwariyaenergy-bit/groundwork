@@ -2,7 +2,7 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { QUICK_LIMITS, createApi, friendlyError, sanitizeQuickInputs, type QuickInputs, type ThinkReport } from '@groundwork/shared';
+import { AI_DISCLOSURE_GEMINI_FREE, QUICK_LIMITS, createApi, friendlyError, sanitizeQuickInputs, type QuickInputs, type ThinkReport } from '@groundwork/shared';
 import { Alert, Button, Field, Input, Skeleton, Textarea, buttonClass } from '@/components/ui';
 import { getBrowserClient } from '@/lib/supabase/client';
 import { clearResult, readResult, saveClaim, saveDraft, saveResult, takeDraft } from '@/lib/quick-validate';
@@ -30,7 +30,7 @@ export function QuickValidateHero() {
         maxLength={QUICK_LIMITS.ideaMaxChars} placeholder={EXAMPLE} className="mt-2 text-[15px]" aria-describedby="hero-idea-help" />
       {error && <p className="mt-2 text-sm text-danger" role="alert">{error}</p>}
       <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
-        <p id="hero-idea-help" className="text-xs text-subtle">Free · no account needed · private</p>
+        <p id="hero-idea-help" className="max-w-md text-xs text-subtle">Free · no account needed. Your idea is sent to Google’s Gemini API (free tier): Google may use it to improve its products and human reviewers may read it — leave out confidential details.</p>
         <Button type="submit" size="lg">Validate my idea</Button>
       </div>
     </form>
@@ -84,7 +84,7 @@ export function QuickValidate({ autoRun }: { autoRun: boolean }) {
   if (phase === 'loading') {
     return (
       <div className="space-y-4" aria-live="polite" aria-busy="true">
-        <p className="text-sm text-muted">Reviewing your idea — this usually takes a few seconds, up to half a minute with AI.</p>
+        <p className="text-sm text-muted">Assessing your idea across seven parameters — this usually takes 15–60 seconds with AI.</p>
         <Skeleton className="h-6 w-1/3" /><Skeleton className="h-24" /><Skeleton className="h-40" /><Skeleton className="h-40" />
       </div>
     );
@@ -95,7 +95,7 @@ export function QuickValidate({ autoRun }: { autoRun: boolean }) {
       <div className="space-y-8">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
-            <h2 ref={resultHeading} tabIndex={-1} className="text-2xl font-semibold tracking-tight outline-none">Your preliminary review</h2>
+            <h2 ref={resultHeading} tabIndex={-1} className="text-2xl font-semibold tracking-tight outline-none">{report.kind === 'assessment' ? 'Your free 7-parameter assessment' : 'Your preliminary review'}</h2>
             <p className="mt-1 max-w-2xl text-sm text-muted">“{inputs.idea.length > 160 ? inputs.idea.slice(0, 157) + '…' : inputs.idea}”</p>
           </div>
           <Button variant="secondary" onClick={() => { clearResult(); setReport(null); setPhase('form'); }}>Validate another idea</Button>
@@ -135,11 +135,13 @@ export function QuickValidate({ autoRun }: { autoRun: boolean }) {
         <Button type="submit" size="lg">Validate my idea</Button>
         <span className="text-xs text-subtle">Free · no account needed</span>
       </div>
-      <p className="text-xs leading-relaxed text-subtle">
-        Your description is used only to create this review. It is stored privately for 7 days so you can save it to an
-        account, then deleted. It is never shown to other people. When AI review is enabled, the text is processed by a
-        third-party AI provider; otherwise a guided, non-AI review is produced. <Link href="/privacy" className="underline">Privacy</Link>
-      </p>
+      <div className="space-y-2 rounded-md border border-line bg-surface px-4 py-3 text-xs leading-relaxed text-muted">
+        <p><strong className="text-fg">Before you submit:</strong> {AI_DISCLOSURE_GEMINI_FREE}</p>
+        <p>
+          On Groundwork your description is stored privately for 7 days so you can save it to an account, then deleted. It is never
+          shown to other people. If AI review is unavailable, a guided, non-AI assessment is produced instead. <Link href="/privacy" className="underline">Privacy</Link>
+        </p>
+      </div>
     </form>
   );
 }
@@ -152,7 +154,7 @@ function SaveCard({ saveable }: { saveable: boolean }) {
     <div className="flex flex-col gap-4 rounded-lg border border-accent/30 bg-accent-soft p-5 sm:flex-row sm:items-center sm:justify-between">
       <div>
         <h3 className="font-semibold text-fg">Keep this review and go deeper</h3>
-        <p className="mt-0.5 text-sm text-muted">Save it to your private Think workspace, run the full 20-section analysis, and ask follow-up questions.</p>
+        <p className="mt-0.5 text-sm text-muted">Save it to your private Think workspace, ask follow-up questions, re-run it as the idea evolves, and explore the in-depth Deep Analysis.</p>
       </div>
       <div className="flex shrink-0 flex-wrap gap-2">
         <Link href="/register?from=quick" className={buttonClass('primary')}>Save — it’s free</Link>

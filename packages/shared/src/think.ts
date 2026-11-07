@@ -7,6 +7,9 @@
  * non-AI checklist fallback.
  */
 
+import type { AssessmentData } from './assessment.ts';
+import type { DeepData } from './deep.ts';
+
 export type EvidenceLabel = 'verified' | 'estimate' | 'assumption' | 'hypothesis' | 'recommendation' | 'question';
 
 export const EVIDENCE_LABELS: Record<EvidenceLabel, { name: string; description: string }> = {
@@ -55,12 +58,20 @@ export interface ThinkPoint {
   source_ids?: string[];
 }
 
+/** Optional structured table attached to a section (competitor matrix, sizing steps, unit economics, roadmap…). */
+export interface ThinkTable {
+  columns: string[];
+  rows: string[][];
+  note?: string;
+}
+
 export interface ThinkSection {
   key: string;
   title: string;
   summary: string;
   points: ThinkPoint[];
   preliminary: boolean;
+  table?: ThinkTable;
 }
 
 export interface ThinkSource {
@@ -68,12 +79,23 @@ export interface ThinkSource {
   name: string;
   url: string;
   retrieved_at: string;
+  /** Publication date when the source exposes one (often unavailable from search grounding). */
+  published_at?: string | null;
+  /** The finding this source was used to support. */
+  finding?: string;
 }
+
+/** Report kinds. Absent on older rows = 'full'. */
+export type ThinkReportKind = 'full' | 'quick' | 'assessment' | 'deep';
 
 export interface ThinkReport {
   version: 1;
-  /** 'quick' = 5-section preliminary report (Quick Validate); 'full' = 20-section analysis. Absent on older rows = full. */
-  kind?: 'full' | 'quick';
+  /**
+   * 'quick' = legacy 5-section Quick Validate report; 'full' = legacy 20-section analysis;
+   * 'assessment' = free 7-parameter assessment; 'deep' = paid Deep Analysis.
+   * Every kind carries `sections`, so older renderers (Android, Markdown export) keep working.
+   */
+  kind?: ThinkReportKind;
   generated_by: 'ai' | 'checklist';
   research_performed: boolean;
   sections: ThinkSection[];
@@ -81,6 +103,10 @@ export interface ThinkReport {
   /** Overall candid assessment: strong / promising / uncertain / weak. AI only. */
   overall_signal: 'strong' | 'promising' | 'uncertain' | 'weak' | null;
   disclaimer: string;
+  /** Structured 7-parameter data (kind 'assessment'). */
+  assessment?: AssessmentData;
+  /** Structured Deep Analysis data (kind 'deep'). */
+  deep?: DeepData;
 }
 
 export interface ThinkContext {
@@ -122,9 +148,9 @@ export const THINK_DISCLAIMER_AI =
 export const THINK_DISCLAIMER_CHECKLIST =
   'Basic checklist — no AI was used. These are structured prompts to help you think the idea through yourself.';
 
-const LABEL_SET = new Set<string>(Object.keys(EVIDENCE_LABELS));
+export const LABEL_SET = new Set<string>(Object.keys(EVIDENCE_LABELS));
 
-function clampText(v: unknown, max: number): string {
+export function clampText(v: unknown, max: number): string {
   if (typeof v !== 'string') return '';
   const t = v.replace(/\u0000/g, '').trim();
   return t.length > max ? t.slice(0, max - 1) + '…' : t;
@@ -192,7 +218,7 @@ export function normalizeReport(
   };
 }
 
-function sanitizeForPrompt(v: string, max: number): string {
+export function sanitizeForPrompt(v: string, max: number): string {
   // Neutralise attempts to break out of the data block.
   return clampText(v, max).replace(/<\/?idea_data>/gi, '');
 }
@@ -310,18 +336,31 @@ export function buildChecklistReport(): ThinkReport {
 
 export function reportToMarkdown(title: string, report: ThinkReport, createdAt?: string): string {
   const lines: string[] = [`# ${title}`, ''];
-  lines.push(`_${report.generated_by === 'ai' ? 'AI-generated analysis' : 'Basic checklist (no AI)'}${createdAt ? ` · ${createdAt}` : ''}_`, '');
+  const kindLabel = report.kind === 'assessment' ? 'Free 7-parameter assessment' : report.kind === 'deep' ? 'Groundwork Deep Analysis' : report.kind === 'quick' ? 'Quick review' : null;
+  const how = report.generated_by === 'ai' ? 'AI-generated' : 'Guided (no AI)';
+  lines.push(`_${kindLabel ? `${kindLabel} · ` : ''}${how}${createdAt ? ` · ${createdAt}` : ''}_`, '');
   lines.push(`> ${report.disclaimer}`, '');
   if (report.overall_signal) lines.push(`**Overall signal (AI view):** ${report.overall_signal}`, '');
   for (const s of report.sections) {
     lines.push(`## ${s.title}${s.preliminary ? ' (preliminary)' : ''}`, '');
     if (s.summary) lines.push(s.summary, '');
-    for (const p of s.points) lines.push(`- **[${EVIDENCE_LABELS[p.label].name}]** ${p.text}`);
+    for (const p of s.points) {
+      lines.push(`- **[${EVIDENCE_LABELS[p.label].name}]** ${p.text}${p.source_ids?.length ? ` (${p.source_ids.join(', ')})` : ''}`);
+    }
+    if (s.table && s.table.columns.length) {
+      const esc = (v: string) => v.replace(/\|/g, '\\|').replace(/\n/g, ' ');
+      lines.push('', `| ${s.table.columns.map(esc).join(' | ')} |`, `| ${s.table.columns.map(() => '---').join(' | ')} |`);
+      for (const r of s.table.rows) lines.push(`| ${s.table.columns.map((_, i) => esc(r[i] ?? '')).join(' | ')} |`);
+      if (s.table.note) lines.push('', `_${s.table.note}_`);
+    }
     lines.push('');
   }
   if (report.sources.length) {
     lines.push('## Sources', '');
-    for (const src of report.sources) lines.push(`- ${src.name} — ${src.url} (retrieved ${src.retrieved_at})`);
+    for (const src of report.sources) {
+      const meta = [src.published_at ? `published ${src.published_at}` : null, `retrieved ${src.retrieved_at}`].filter(Boolean).join(', ');
+      lines.push(`- [${src.id}] ${src.name} — ${src.url} (${meta})${src.finding ? ` — supports: ${src.finding}` : ''}`);
+    }
   }
   return lines.join('\n');
 }

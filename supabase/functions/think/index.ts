@@ -1,6 +1,7 @@
 /**
  * Think edge function.
- *   POST { action: 'analyze' | 'followup' | 'checklist', project_id, question? }
+ *   POST { action: 'analyze' | 'followup' | 'checklist' | 'assess', project_id, question? }
+ *   'assess' = free 7-parameter assessment (see ./assess.ts).
  *
  * Cost-control guarantees (see docs/AI_COSTS.md):
  *  - Master switch `think.ai_enabled` must be on; providers ship disabled.
@@ -13,6 +14,7 @@
  *  - Prompts and completions are never written to ai_usage_logs.
  */
 import { admin, requireUser } from '../_shared/clients.ts';
+import { runAssessment } from './assess.ts';
 import { json, preflight } from '../_shared/http.ts';
 import { approxTokens, complete, estimateCost, ProviderError, type ProviderConfig } from '../_shared/ai.ts';
 import {
@@ -128,7 +130,7 @@ Deno.serve(async (req) => {
     return json(req, 400, { error: 'invalid_body' });
   }
   const action = body.action;
-  if (action !== 'analyze' && action !== 'followup' && action !== 'checklist') return json(req, 400, { error: 'invalid_action' });
+  if (action !== 'analyze' && action !== 'followup' && action !== 'checklist' && action !== 'assess') return json(req, 400, { error: 'invalid_action' });
   if (typeof body.project_id !== 'string' || !/^[0-9a-f-]{36}$/i.test(body.project_id)) return json(req, 400, { error: 'invalid_project' });
 
   const { data: profile } = await admin.from('profiles').select('account_status').eq('id', user.id).single();
@@ -138,6 +140,12 @@ Deno.serve(async (req) => {
   const { data: project } = await admin.from('think_projects').select('*').eq('id', body.project_id).eq('owner_id', user.id).maybeSingle();
   if (!project) return json(req, 404, { error: 'project_not_found' });
   if ((project.idea as string).trim().length < 30) return json(req, 400, { error: 'idea_too_short' });
+
+  // ---- free 7-parameter assessment ----
+  if (action === 'assess') {
+    const { data: prefs } = await admin.from('profile_preferences').select('ai_processing_acknowledged_at').eq('user_id', user.id).single();
+    return runAssessment(req, user.id, project, Boolean(prefs?.ai_processing_acknowledged_at));
+  }
 
   // ---- checklist: deterministic, no AI, always available ----
   if (action === 'checklist') {

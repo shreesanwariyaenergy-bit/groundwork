@@ -41,5 +41,8 @@ verify_jwt = true
 [functions.notify-dispatch]
 verify_jwt = false
 
+[functions.think-deep]
+verify_jwt = true
+
 [functions.think-quick]
 verify_jwt = false

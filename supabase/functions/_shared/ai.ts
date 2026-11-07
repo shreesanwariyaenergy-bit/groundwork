@@ -33,18 +33,36 @@ export interface CompletionRequest {
   messages: ChatMessage[];
   json: boolean;
   maxOutputTokens: number;
+  /** Override the provider's default model for this call (per-feature model config). */
+  model?: string;
+  /** Ground the answer with Google Search (Gemini only). Returns sources in `grounding`. */
+  search?: boolean;
+  /** Reasoning effort for models that support it (Gemini 3 family). */
+  reasoning?: 'low' | 'medium' | 'high';
+}
+
+export interface GroundingInfo {
+  chunks: { web?: { uri?: string; title?: string } }[];
+  supports: { segment?: { text?: string; startIndex?: number; endIndex?: number }; groundingChunkIndices?: number[] }[];
+  queries: string[];
+  searchEntryPointHtml: string | null;
 }
 
 export interface CompletionResult {
   text: string;
   inputTokens: number;
+  /** Includes reasoning ("thinking") tokens, which are billed as output. */
   outputTokens: number;
   latencyMs: number;
+  /** Model that actually served the request. */
+  model: string;
+  grounding?: GroundingInfo;
 }
 
 export class ProviderError extends Error {
-  constructor(public code: string, message?: string) {
-    super(message ?? code);
+  /** Short provider diagnostic (status + message, never prompt content), e.g. a quota description. */
+  constructor(public code: string, public detail?: string) {
+    super(code);
   }
 }
 
@@ -63,9 +81,17 @@ async function postJson(url: string, headers: Record<string, string>, body: unkn
       body: JSON.stringify(body),
       signal: ctrl.signal,
     });
-    if (res.status === 429) throw new ProviderError('provider_rate_limited');
-    if (res.status === 401 || res.status === 403) throw new ProviderError('provider_auth_failed');
-    if (!res.ok) throw new ProviderError('provider_http_' + res.status);
+    if (!res.ok) {
+      // Provider error bodies describe the failure (status, quota metric, model not found); they never echo the key.
+      let detail = '';
+      try {
+        const b = (await res.json()) as { error?: { status?: string; message?: string } };
+        detail = `${b.error?.status ?? ''} ${b.error?.message ?? ''}`.trim().slice(0, 300);
+      } catch { /* non-JSON body */ }
+      if (res.status === 429) throw new ProviderError('provider_rate_limited', detail);
+      if (res.status === 401 || res.status === 403) throw new ProviderError('provider_auth_failed', detail);
+      throw new ProviderError('provider_http_' + res.status, detail);
+    }
     return await res.json();
   } catch (e) {
     if (e instanceof ProviderError) throw e;
@@ -76,32 +102,74 @@ async function postJson(url: string, headers: Record<string, string>, body: unkn
   }
 }
 
+type GeminiResponse = {
+  candidates?: {
+    content?: { parts?: { text?: string; thought?: boolean }[] };
+    finishReason?: string;
+    groundingMetadata?: {
+      webSearchQueries?: string[];
+      groundingChunks?: GroundingInfo['chunks'];
+      groundingSupports?: GroundingInfo['supports'];
+      searchEntryPoint?: { renderedContent?: string };
+    };
+  }[];
+  usageMetadata?: { promptTokenCount?: number; candidatesTokenCount?: number; thoughtsTokenCount?: number; toolUsePromptTokenCount?: number };
+};
+
+/** Gemini 3+ models: keep the default temperature (Google recommends 1.0) and use thinking levels. */
+export function isGemini3Plus(model: string): boolean {
+  return /^gemini-([3-9]|\d{2,})/.test(model);
+}
+
 async function gemini(cfg: ProviderConfig, req: CompletionRequest): Promise<Omit<CompletionResult, 'latencyMs'>> {
   const key = apiKey(cfg);
   if (!key) throw new ProviderError('provider_not_configured');
+  const model = req.model || cfg.model;
   const base = (cfg.base_url ?? 'https://generativelanguage.googleapis.com/v1beta').replace(/\/$/, '');
-  const data = (await postJson(
-    `${base}/models/${encodeURIComponent(cfg.model)}:generateContent`,
-    { 'x-goog-api-key': key },
-    {
-      systemInstruction: { parts: [{ text: req.system }] },
-      contents: req.messages.map((m) => ({ role: m.role === 'assistant' ? 'model' : 'user', parts: [{ text: m.content }] })),
-      generationConfig: {
-        temperature: 0.4,
-        maxOutputTokens: req.maxOutputTokens,
-        ...(req.json ? { responseMimeType: 'application/json' } : {}),
-      },
+  const modern = isGemini3Plus(model);
+  const body = (withThinking: boolean) => ({
+    systemInstruction: { parts: [{ text: req.system }] },
+    contents: req.messages.map((m) => ({ role: m.role === 'assistant' ? 'model' : 'user', parts: [{ text: m.content }] })),
+    ...(req.search ? { tools: [{ google_search: {} }] } : {}),
+    generationConfig: {
+      ...(modern ? {} : { temperature: 0.4 }),
+      maxOutputTokens: req.maxOutputTokens,
+      // JSON mode is not combined with search grounding (grounding metadata can come back empty).
+      ...(req.json && !req.search ? { responseMimeType: 'application/json' } : {}),
+      ...(withThinking && modern && req.reasoning ? { thinkingConfig: { thinkingLevel: req.reasoning } } : {}),
     },
-    cfg.timeout_ms,
-  )) as {
-    candidates?: { content?: { parts?: { text?: string }[] }; finishReason?: string }[];
-    usageMetadata?: { promptTokenCount?: number; candidatesTokenCount?: number };
-  };
+  });
+  const url = `${base}/models/${encodeURIComponent(model)}:generateContent`;
+  let data: GeminiResponse;
+  try {
+    data = (await postJson(url, { 'x-goog-api-key': key }, body(true), cfg.timeout_ms)) as GeminiResponse;
+  } catch (e) {
+    // If the model rejects the reasoning setting, retry once without it (same model — never a different/paid one).
+    if (e instanceof ProviderError && e.code === 'provider_http_400' && modern && req.reasoning && /thinking/i.test(e.detail ?? '')) {
+      data = (await postJson(url, { 'x-goog-api-key': key }, body(false), cfg.timeout_ms)) as GeminiResponse;
+    } else throw e;
+  }
   const cand = data.candidates?.[0];
-  if (cand?.finishReason === 'SAFETY') throw new ProviderError('provider_blocked');
-  const text = cand?.content?.parts?.map((p) => p.text ?? '').join('') ?? '';
-  if (!text) throw new ProviderError('provider_empty_response');
-  return { text, inputTokens: data.usageMetadata?.promptTokenCount ?? 0, outputTokens: data.usageMetadata?.candidatesTokenCount ?? 0 };
+  if (cand?.finishReason === 'SAFETY' || cand?.finishReason === 'PROHIBITED_CONTENT') throw new ProviderError('provider_blocked');
+  if (cand?.finishReason === 'MAX_TOKENS') throw new ProviderError('provider_truncated');
+  const text = cand?.content?.parts?.filter((p) => !p.thought).map((p) => p.text ?? '').join('') ?? '';
+  if (!text) throw new ProviderError('provider_empty_response', cand?.finishReason);
+  const u = data.usageMetadata ?? {};
+  const gm = cand?.groundingMetadata;
+  return {
+    text,
+    model,
+    inputTokens: (u.promptTokenCount ?? 0) + (u.toolUsePromptTokenCount ?? 0),
+    outputTokens: (u.candidatesTokenCount ?? 0) + (u.thoughtsTokenCount ?? 0),
+    ...(req.search ? {
+      grounding: {
+        chunks: gm?.groundingChunks ?? [],
+        supports: gm?.groundingSupports ?? [],
+        queries: gm?.webSearchQueries ?? [],
+        searchEntryPointHtml: gm?.searchEntryPoint?.renderedContent ?? null,
+      },
+    } : {}),
+  };
 }
 
 async function openaiCompatible(cfg: ProviderConfig, req: CompletionRequest): Promise<Omit<CompletionResult, 'latencyMs'>> {
@@ -112,7 +180,7 @@ async function openaiCompatible(cfg: ProviderConfig, req: CompletionRequest): Pr
     `${cfg.base_url.replace(/\/$/, '')}/chat/completions`,
     { Authorization: `Bearer ${key}` },
     {
-      model: cfg.model,
+      model: req.model || cfg.model,
       temperature: 0.4,
       max_tokens: req.maxOutputTokens,
       messages: [{ role: 'system', content: req.system }, ...req.messages],
@@ -122,7 +190,7 @@ async function openaiCompatible(cfg: ProviderConfig, req: CompletionRequest): Pr
   )) as { choices?: { message?: { content?: string } }[]; usage?: { prompt_tokens?: number; completion_tokens?: number } };
   const text = data.choices?.[0]?.message?.content ?? '';
   if (!text) throw new ProviderError('provider_empty_response');
-  return { text, inputTokens: data.usage?.prompt_tokens ?? 0, outputTokens: data.usage?.completion_tokens ?? 0 };
+  return { text, model: req.model || cfg.model, inputTokens: data.usage?.prompt_tokens ?? 0, outputTokens: data.usage?.completion_tokens ?? 0 };
 }
 
 async function ollama(cfg: ProviderConfig, req: CompletionRequest): Promise<Omit<CompletionResult, 'latencyMs'>> {
@@ -132,7 +200,7 @@ async function ollama(cfg: ProviderConfig, req: CompletionRequest): Promise<Omit
     `${cfg.base_url.replace(/\/$/, '')}/api/chat`,
     key ? { Authorization: `Bearer ${key}` } : {},
     {
-      model: cfg.model,
+      model: req.model || cfg.model,
       stream: false,
       ...(req.json ? { format: 'json' } : {}),
       options: { temperature: 0.4, num_predict: req.maxOutputTokens },
@@ -142,11 +210,13 @@ async function ollama(cfg: ProviderConfig, req: CompletionRequest): Promise<Omit
   )) as { message?: { content?: string }; prompt_eval_count?: number; eval_count?: number };
   const text = data.message?.content ?? '';
   if (!text) throw new ProviderError('provider_empty_response');
-  return { text, inputTokens: data.prompt_eval_count ?? 0, outputTokens: data.eval_count ?? 0 };
+  return { text, model: req.model || cfg.model, inputTokens: data.prompt_eval_count ?? 0, outputTokens: data.eval_count ?? 0 };
 }
 
 export async function complete(cfg: ProviderConfig, req: CompletionRequest): Promise<CompletionResult> {
   const started = Date.now();
+  // Search grounding is a Gemini feature; other providers never silently "research".
+  if (req.search && cfg.provider !== 'gemini') throw new ProviderError('provider_no_search');
   const adapter = cfg.provider === 'gemini' ? gemini : cfg.provider === 'openai_compatible' ? openaiCompatible : ollama;
   const res = await adapter(cfg, { ...req, maxOutputTokens: Math.min(req.maxOutputTokens, cfg.max_output_tokens) });
   return { ...res, latencyMs: Date.now() - started };

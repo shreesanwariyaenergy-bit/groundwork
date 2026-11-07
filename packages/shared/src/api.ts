@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { ReportReason, StartupStage, Availability, UserIntent, WorkMode } from './constants.ts';
 import type { QuickInputs, ThinkReport } from './think.ts';
+import type { DeepAnswers } from './deep.ts';
 import type {
   ConnectionRequestRow, ConnectionRow, ConversationRow, Message, Notification, ProfileCard, RecommendationCard,
   SearchFilters, ThinkAnalysis, ThinkMessage, ThinkProject, ThinkStatus, Role, Industry, Skill, SkillCategory,
@@ -25,6 +26,19 @@ function unwrap<T>(res: { data: T | null; error: { message: string; code?: strin
 }
 
 export const PAGE_SIZE = 20;
+
+async function invokeFn<T>(sb: SupabaseClient, name: string, body: Record<string, unknown>, fallbackCode: string): Promise<T> {
+  const { data, error } = await sb.functions.invoke(name, { body });
+  if (error) {
+    let code = fallbackCode;
+    try {
+      const ctx = (error as unknown as { context?: Response }).context;
+      if (ctx && typeof ctx.json === 'function') code = ((await ctx.json()) as { error?: string }).error ?? code;
+    } catch { /* ignore */ }
+    throw new ApiError(code, code);
+  }
+  return data as T;
+}
 
 export function createApi(sb: SupabaseClient) {
   return {
@@ -180,13 +194,13 @@ export function createApi(sb: SupabaseClient) {
       return unwrap(await sb.from('think_projects').select('*').eq('id', id).maybeSingle()) as ThinkProject | null;
     },
     async analyses(projectId: string): Promise<ThinkAnalysis[]> {
-      return unwrap(await sb.from('think_analyses').select('*').eq('project_id', projectId).order('created_at', { ascending: false }).limit(20)) as ThinkAnalysis[];
+      return unwrap(await sb.from('think_analyses').select('*').eq('project_id', projectId).order('created_at', { ascending: false }).limit(60)) as ThinkAnalysis[];
     },
     async thinkMessages(projectId: string): Promise<ThinkMessage[]> {
       return unwrap(await sb.from('think_messages').select('*').eq('project_id', projectId).order('created_at').limit(200)) as ThinkMessage[];
     },
     /** Runs on the server (Edge Function `think`). mode=checklist never calls an AI provider. */
-    async runThink(action: 'analyze' | 'followup' | 'checklist', projectId: string, question?: string) {
+    async runThink(action: 'analyze' | 'followup' | 'checklist' | 'assess', projectId: string, question?: string) {
       const { data, error } = await sb.functions.invoke('think', { body: { action, project_id: projectId, question } });
       if (error) {
         let code = 'ai_unavailable';
@@ -196,7 +210,25 @@ export function createApi(sb: SupabaseClient) {
         } catch { /* ignore */ }
         throw new ApiError(code, code);
       }
-      return data as { analysis?: ThinkAnalysis; message?: ThinkMessage };
+      return data as { analysis?: ThinkAnalysis; message?: ThinkMessage; fallback?: boolean; error_code?: string | null };
+    },
+    /** Paid Deep Analysis: start (consumes one access entitlement server-side) and advance one stage per call. */
+    async deepStart(projectId: string, answers: DeepAnswers): Promise<string> {
+      const res = await invokeFn<{ analysis_id: string }>(sb, 'think-deep', { action: 'start', project_id: projectId, answers: answers as unknown as Record<string, unknown> }, 'ai_unavailable');
+      return res.analysis_id;
+    },
+    async deepStep(analysisId: string): Promise<{ status: 'running' | 'completed' | 'failed'; stage: string | null; busy?: boolean; error?: string; retryable?: boolean }> {
+      const { data, error } = await sb.functions.invoke('think-deep', { body: { action: 'step', analysis_id: analysisId } });
+      if (!error) return data;
+      // 502 carries a useful body (retryable stage error or final failure).
+      try {
+        const ctx = (error as unknown as { context?: Response }).context;
+        if (ctx && typeof ctx.json === 'function') return await ctx.json();
+      } catch { /* ignore */ }
+      throw new ApiError('ai_unavailable', 'ai_unavailable');
+    },
+    async deepEntitlements(): Promise<{ id: string; status: string; source: string; created_at: string; consumed_at: string | null }[]> {
+      return unwrap(await sb.from('think_deep_entitlements').select('id, status, source, created_at, consumed_at').order('created_at', { ascending: false }).limit(50)) as { id: string; status: string; source: string; created_at: string; consumed_at: string | null }[];
     },
     /** Anonymous Quick Validate (public site). Returns the report and a one-time claim token. */
     async quickValidate(inputs: QuickInputs): Promise<{ token: string | null; report: ThinkReport; expires_at: string | null; mode: 'ai' | 'checklist' }> {
