@@ -5,6 +5,7 @@ import { useState } from 'react';
 import { signInSchema, firstError } from '@groundwork/shared';
 import { Alert, Button, Field, Input } from '@/components/ui';
 import { GoogleButton } from '@/components/app/GoogleButton';
+import { EmailCodeForm } from '@/components/app/EmailCodeForm';
 import { getBrowserClient } from '@/lib/supabase/client';
 
 function safeNext(v: string | null) {
@@ -22,6 +23,8 @@ export function LoginForm() {
     params.get('error') ? 'That sign-in link is invalid or has expired.' : null,
   );
   const [loading, setLoading] = useState(false);
+  const [unconfirmed, setUnconfirmed] = useState(false);
+  const [codeFor, setCodeFor] = useState<string | null>(null);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -31,12 +34,24 @@ export function LoginForm() {
     const { error } = await getBrowserClient().auth.signInWithPassword(parsed.data);
     setLoading(false);
     if (error) {
-      setError(/confirm/i.test(error.message) ? 'Please verify your email first — check your inbox for the link.' : 'Incorrect email or password.');
+      const notConfirmed = /confirm/i.test(error.message);
+      setUnconfirmed(notConfirmed);
+      setError(notConfirmed ? 'Your email is not verified yet. We can send you a code to verify it here.' : 'Incorrect email or password.');
       return;
     }
     router.replace(next);
     router.refresh();
   }
+
+  async function sendVerificationCode() {
+    setLoading(true);
+    const { error } = await getBrowserClient().auth.resend({ type: 'signup', email: email.trim().toLowerCase() });
+    setLoading(false);
+    if (error) return setError(/rate|seconds/i.test(error.message) ? 'Please wait a minute before requesting another code.' : 'Could not send a code. Please try again.');
+    setCodeFor(email.trim().toLowerCase());
+  }
+
+  if (codeFor) return <EmailCodeForm email={codeFor} type="signup" next={next} onBack={() => setCodeFor(null)} />;
 
   return (
     <>
@@ -46,6 +61,7 @@ export function LoginForm() {
         <GoogleButton next={next} />
         <form onSubmit={submit} className="space-y-4" noValidate>
           {error && <Alert tone="danger">{error}</Alert>}
+          {unconfirmed && <Button type="button" variant="secondary" className="w-full" loading={loading} onClick={sendVerificationCode}>Send me a verification code</Button>}
           <Field label="Email" htmlFor="email"><Input id="email" type="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} required /></Field>
           <Field label="Password" htmlFor="password"><Input id="password" type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} required /></Field>
           <div className="flex justify-end"><Link href="/forgot-password" className="text-sm text-muted hover:text-fg">Forgot password?</Link></div>

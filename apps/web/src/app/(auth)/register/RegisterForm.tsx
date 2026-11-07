@@ -5,6 +5,7 @@ import { useState } from 'react';
 import { fieldErrors, signUpSchema } from '@groundwork/shared';
 import { Alert, Button, Checkbox, Field, Input } from '@/components/ui';
 import { GoogleButton } from '@/components/app/GoogleButton';
+import { EmailCodeForm } from '@/components/app/EmailCodeForm';
 import { getBrowserClient } from '@/lib/supabase/client';
 import { SITE_URL } from '@/lib/env';
 
@@ -40,13 +41,7 @@ export function RegisterForm() {
   }
 
   if (sentTo) {
-    return (
-      <div>
-        <h1 className="text-xl font-semibold">Check your email</h1>
-        <p className="mt-2 text-sm text-muted">We sent a verification link to <strong className="text-fg">{sentTo}</strong>. Open it to verify your account and continue setting up your profile.</p>
-        <p className="mt-4 text-sm text-muted">Didn’t get it? Check spam, or <button className="text-accent underline" onClick={() => setSentTo(null)}>try again</button>.</p>
-      </div>
-    );
+    return <EmailCodeForm email={sentTo} type="signup" next="/app/onboarding" onBack={() => setSentTo(null)} />;
   }
 
   const set = <K extends keyof typeof form>(k: K, v: (typeof form)[K]) => setForm((f) => ({ ...f, [k]: v }));
