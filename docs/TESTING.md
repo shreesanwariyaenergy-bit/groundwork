@@ -9,6 +9,8 @@
 | Type checks | `pnpm typecheck`, `deno check …` | shared, web, mobile, edge functions | **Pass** |
 | Lint | `pnpm --filter web lint` | Next.js + React hooks rules | **Pass** |
 | Web build | `pnpm build:web` | Production build; `/app` and `/admin` forced dynamic | **Pass** |
+| Database on live Supabase | rolled-back transaction via SQL (same assertions as the local suite) | Real Supabase auth schema, triggers on `auth.users`, RLS, grants | **Pass** (2026-11-07) |
+| Live API smoke test | `curl` with the publishable key | anon can read taxonomy only; profiles/Think/admin/matching RPCs denied; edge functions return 401/403 without credentials | **Pass** |
 | Android bundle | `cd apps/mobile && npx expo export --platform android` | Metro + Hermes bundle of the full app incl. workspace package | **Pass** |
 
 The local DB suite uses plain PostgreSQL with a minimal `auth` shim (`supabase/tests/00_supabase_shim.sql`); it does

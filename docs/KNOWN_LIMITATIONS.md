@@ -1,16 +1,17 @@
 # Known limitations and blockers
 
 ## Blockers (need you)
-1. **Supabase project not created.** The organisation `shreesanwariyaenergy-bit's Org` is on the free plan and already
-   has two active free projects (`outflex`, `status-network`). Creating a third was refused. I did not pause or
-   delete either project. Options: upgrade the org, create a new org, or pause a project you no longer need — then
-   follow `docs/SETUP_AND_DEPLOYMENT.md`.
+1. ~~Supabase project not created.~~ **Done (2026-11-07):** project `groundwork` (ref `vovupikwumeckppuotgk`, region
+   ap-south-1) created after `outflex` was paused. All 6 migrations applied; edge functions `think`, `delete-account`,
+   `notify-dispatch` deployed; the full RLS/logic test suite passed against the live database (in a rolled-back
+   transaction). Still to do in the dashboard: Auth URLs/SMTP/Google, the notifications Database Webhook, secrets
+   (`NOTIFY_WEBHOOK_SECRET`, `APP_URL`, `ALLOWED_ORIGINS`, AI keys) — see `docs/SETUP_AND_DEPLOYMENT.md`.
 2. **GitHub repository not created / pushed.** The GitHub token in this environment is invalid. The code is committed
    to a local git repository (`main`). Create an empty repo and push, or re-authenticate GitHub for this environment.
-3. **No deployment performed.** No Vercel project, EAS project or Play listing was created. Nothing has been deployed.
+3. **Web/Android not deployed.** No Vercel project, EAS project or Play listing was created yet.
 
 ## Product / technical limitations
-* Not tested end-to-end against live Supabase Auth/Realtime/Storage/Edge Functions (see `docs/TESTING.md`).
+* Database logic and RLS are verified on the live project; real sign-up/email, Realtime, Storage uploads and AI calls through the deployed functions are not yet exercised end-to-end (see `docs/TESTING.md`).
 * Think performs **no external research**; market and competitor findings are always marked preliminary. `think_sources`
   exists for a future research step.
 * AI analysis is synchronous (20–60 s typical; edge function wall-clock limits apply). A queue would be needed at scale.
