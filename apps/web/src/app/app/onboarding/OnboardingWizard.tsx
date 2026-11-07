@@ -45,13 +45,17 @@ export function OnboardingWizard() {
     <div className="min-h-dvh bg-surface">
       <header className="mx-auto flex h-16 max-w-3xl items-center justify-between px-4 sm:px-6">
         <Logo href="/app/onboarding" />
-        <span className="text-sm text-muted">Step {idx + 1} of {steps.length}</span>
+        <div className="flex items-center gap-4 text-sm">
+          <span className="text-muted">Step {idx + 1} of {steps.length}</span>
+          <a href="/app" className="text-muted underline hover:text-fg">Skip for now</a>
+        </div>
       </header>
       <div className="mx-auto max-w-3xl px-4 pb-16 sm:px-6">
         <div className="mb-6 h-1 overflow-hidden rounded-full bg-line"><div className="h-full bg-accent transition-all" style={{ width: `${((idx + 1) / steps.length) * 100}%` }} /></div>
         <div className="rounded-lg border border-line bg-raised p-5 sm:p-8">
           <h1 className="text-xl font-semibold">{step.title}</h1>
           <p className="mt-1 mb-6 text-sm text-muted">{step.subtitle}</p>
+          {idx === 0 && <p className="-mt-3 mb-6 text-xs text-subtle">Your profile is used by Connect so the right people can find you. Think works without it.</p>}
           {step.key === 'intents' && <IntentsForm onSaved={next} submitLabel="Continue" />}
           {step.key === 'looking' && <LookingForForm onSaved={next} submitLabel="Continue" onBack={back} />}
           {step.key === 'basics' && (

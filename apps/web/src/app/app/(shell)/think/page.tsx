@@ -1,17 +1,18 @@
 'use client';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { Suspense, useState } from 'react';
 import { friendlyError, relativeTime } from '@groundwork/shared';
 import { Button, Card, EmptyState, ErrorState, Modal, PageHeader, Skeleton } from '@/components/ui';
 import { ProjectForm } from '@/components/app/ThinkUI';
 import { useApp, useAsync } from '@/components/app/AppProvider';
 import { getBrowserClient } from '@/lib/supabase/client';
 
-export default function ThinkListPage() {
+function ThinkList() {
   const { api, user } = useApp();
   const router = useRouter();
-  const [creating, setCreating] = useState(false);
+  const params = useSearchParams();
+  const [creating, setCreating] = useState(params.get('new') === '1');
   const { data, loading, error, reload } = useAsync(() => api.thinkProjects(), []);
   const status = useAsync(() => api.thinkStatus(), []);
   const shared = useAsync(async () => {
@@ -31,8 +32,8 @@ export default function ThinkListPage() {
         </p>
       )}
       {loading ? <Skeleton className="h-40" /> : error ? <ErrorState message={friendlyError(error)} onRetry={reload} /> : !data?.length ? (
-        <EmptyState title="Start your first project" body="Describe an idea and get a structured analysis covering customers, risks, assumptions, experiments and next steps."
-          action={<Button onClick={() => setCreating(true)}>New project</Button>} />
+        <EmptyState title="Start your first project" body="Describe an idea and get a structured analysis covering customers, risks, assumptions, experiments and next steps. Projects are private to you."
+          action={<div className="flex flex-wrap justify-center gap-2"><Button onClick={() => setCreating(true)}>New project</Button><Link href="/validate" className="inline-flex h-10 items-center rounded-md border border-line-strong px-4 text-sm hover:bg-surface">Quick validate first</Link></div>} />
       ) : (
         <ul className="grid gap-4 sm:grid-cols-2">
           {data.map((p) => (
@@ -66,4 +67,8 @@ export default function ThinkListPage() {
       </Modal>
     </>
   );
+}
+
+export default function ThinkListPage() {
+  return <Suspense><ThinkList /></Suspense>;
 }

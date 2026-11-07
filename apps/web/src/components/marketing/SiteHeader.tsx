@@ -3,10 +3,10 @@ import { Logo } from './Logo';
 import { buttonClass } from '@/components/ui/styles';
 
 const NAV = [
-  { href: '/how-it-works', label: 'How it works' },
-  { href: '/founder-matchmaking', label: 'Co-founders' },
-  { href: '/professional-matchmaking', label: 'Professionals' },
+  { href: '/validate', label: 'Quick Validate' },
   { href: '/think-workspace', label: 'Think' },
+  { href: '/founder-matchmaking', label: 'Connect' },
+  { href: '/how-it-works', label: 'How it works' },
   { href: '/faq', label: 'FAQ' },
 ];
 
@@ -20,7 +20,7 @@ export function SiteHeader() {
         </nav>
         <div className="flex items-center gap-2">
           <Link href="/login" className={buttonClass('ghost', 'sm')}>Log in</Link>
-          <Link href="/register" className={buttonClass('primary', 'sm')}>Join the network</Link>
+          <Link href="/validate" className={buttonClass('primary', 'sm')}>Validate an idea</Link>
         </div>
       </div>
       <nav className="flex gap-5 overflow-x-auto border-t border-line px-4 py-2 text-sm text-muted md:hidden" aria-label="Main mobile">

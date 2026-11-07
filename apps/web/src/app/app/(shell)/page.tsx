@@ -3,11 +3,17 @@ import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { Suspense } from 'react';
 import { relativeTime } from '@groundwork/shared';
-import { Alert, Avatar, Card, EmptyState, Skeleton, buttonClass } from '@/components/ui';
+import { Alert, Avatar, Badge, Card, EmptyState, Skeleton, buttonClass } from '@/components/ui';
 import { useApp, useAsync } from '@/components/app/AppProvider';
 import { ProfileCompletionCard } from '@/components/app/ProfileCompletion';
 import { PersonCard } from '@/components/app/PeopleUI';
 import { InviteBox } from '@/components/app/InviteBox';
+
+function Welcome() {
+  const params = useSearchParams();
+  if (!params.get('welcome')) return null;
+  return <Alert tone="accent" title="Your profile is live">Connect will now recommend people who complement you.</Alert>;
+}
 
 function Section({ title, href, linkLabel = 'View all', children }: { title: string; href?: string; linkLabel?: string; children: React.ReactNode }) {
   return (
@@ -21,89 +27,109 @@ function Section({ title, href, linkLabel = 'View all', children }: { title: str
   );
 }
 
-function Welcome() {
-  const params = useSearchParams();
-  if (!params.get('welcome')) return null;
-  return <Alert tone="accent" title="Your profile is live">Here are your first recommendations. Start a Think project while the network grows.</Alert>;
-}
-
 export default function HomePage() {
-  const { api, profile, avatar } = useApp();
-  const recs = useAsync(() => api.recommendations(0), []);
-  const requests = useAsync(() => api.requests('received'), []);
-  const convs = useAsync(() => api.conversations(0), []);
+  const { api, profile, user, avatar } = useApp();
+  const onboarded = profile.onboarding_completed;
   const projects = useAsync(() => api.thinkProjects(), []);
-  const connections = useAsync(() => api.connections(0), []);
-
-  const nextActions: { label: string; href: string }[] = [];
-  if ((requests.data?.length ?? 0) > 0) nextActions.push({ label: `Respond to ${requests.data!.length} connection request${requests.data!.length > 1 ? 's' : ''}`, href: '/app/connections' });
-  if ((projects.data?.length ?? 0) === 0) nextActions.push({ label: 'Start your first Think project', href: '/app/think' });
-  if ((connections.data?.length ?? 0) === 0) nextActions.push({ label: 'Send your first connection request', href: '/app/discover' });
-  if (!profile.bio) nextActions.push({ label: 'Write a short introduction', href: '/app/profile' });
+  const status = useAsync(() => api.thinkStatus(), []);
+  const connect = useAsync(async () => {
+    if (!onboarded) return null;
+    const [recs, requests, convs] = await Promise.all([api.recommendations(0), api.requests('received'), api.conversations(0)]);
+    return { recs, requests, convs };
+  }, [onboarded]);
+  const firstName = profile.display_name?.split(' ')[0] || user.email?.split('@')[0] || '';
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-10">
       <Suspense><Welcome /></Suspense>
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Welcome back{profile.display_name ? `, ${profile.display_name.split(' ')[0]}` : ''}</h1>
-        <p className="mt-1 text-sm text-muted">Here is what needs your attention.</p>
+        <h1 className="text-2xl font-semibold tracking-tight">Welcome{firstName ? `, ${firstName}` : ''}</h1>
+        <p className="mt-1 text-sm text-muted">Pick up an idea where you left it, or start a new one.</p>
       </div>
 
-      <div className="grid gap-5 lg:grid-cols-[1fr_300px]">
-        <div className="space-y-8">
-          {nextActions.length > 0 && (
-            <Card className="p-5">
-              <h2 className="text-sm font-semibold">Suggested next steps</h2>
-              <ul className="mt-2 space-y-1.5 text-sm">{nextActions.slice(0, 4).map((a) => <li key={a.href + a.label}><Link className="text-accent hover:underline" href={a.href}>{a.label} →</Link></li>)}</ul>
-            </Card>
-          )}
-
-          <Section title="Recommended for you" href="/app/discover">
-            {recs.loading ? <Skeleton className="h-52" /> : recs.error ? <Alert tone="danger">Could not load recommendations.</Alert> : (recs.data ?? []).length === 0 ? (
-              <EmptyState title="No strong matches yet" body="The network is still growing. Complete your profile, search with filters, or invite collaborators." action={<Link href="/app/discover" className={buttonClass('secondary')}>Search people</Link>} />
-            ) : <ul className="grid gap-4 sm:grid-cols-2">{recs.data!.slice(0, 4).map((p) => <PersonCard key={p.id} person={p} />)}</ul>}
-          </Section>
-
-          <Section title="Recent conversations" href="/app/messages">
-            {convs.loading ? <Skeleton className="h-24" /> : (convs.data ?? []).length === 0 ? (
-              <p className="text-sm text-muted">No conversations yet. Messaging opens when a connection request is accepted.</p>
-            ) : (
-              <ul className="divide-y divide-line rounded-lg border border-line bg-raised">
-                {convs.data!.slice(0, 4).map((c) => (
-                  <li key={c.conversation_id}><Link href={`/app/messages/${c.conversation_id}`} className="flex items-center gap-3 px-4 py-3 hover:bg-surface">
-                    <Avatar name={c.peer_name} src={avatar(c.peer_avatar)} size={36} />
-                    <div className="min-w-0 flex-1"><div className="text-sm font-medium">{c.peer_name}</div><div className="truncate text-sm text-muted">{c.last_message ?? 'Say hello'}</div></div>
-                    <div className="text-right text-xs text-subtle">{relativeTime(c.last_message_at)}{c.unread_count > 0 && <div className="mt-1 inline-block rounded-full bg-accent px-1.5 text-on-accent">{c.unread_count}</div>}</div>
-                  </Link></li>
-                ))}
-              </ul>
-            )}
-          </Section>
+      {/* THINK — primary */}
+      <section aria-labelledby="think-h" className="space-y-4">
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <h2 id="think-h" className="text-lg font-semibold">Think</h2>
+            <p className="text-sm text-muted">
+              {status.data?.ai_available
+                ? `AI analyses left today: ${Math.max(0, status.data.analyses_per_day - status.data.analyses_used_today)} of ${status.data.analyses_per_day}`
+                : 'Guided reviews are available. AI analysis will appear here when it is switched on.'}
+            </p>
+          </div>
+          <div className="flex gap-2">
+            <Link href="/app/think?new=1" className={buttonClass('primary')}>New Think project</Link>
+            <Link href="/validate" className={buttonClass('secondary')}>Quick validate</Link>
+          </div>
         </div>
+        {projects.loading ? <Skeleton className="h-28" /> : (projects.data ?? []).length === 0 ? (
+          <EmptyState title="No Think projects yet"
+            body="Describe an idea to get a structured review: customers, risks, the assumptions you are betting on and what to test next. Projects are private to you."
+            action={<Link href="/app/think?new=1" className={buttonClass('primary')}>Start your first project</Link>} />
+        ) : (
+          <ul className="grid gap-3 sm:grid-cols-2">
+            {projects.data!.slice(0, 4).map((p) => (
+              <li key={p.id}>
+                <Link href={`/app/think/${p.id}`} className="block h-full rounded-lg border border-line bg-raised p-4 hover:border-line-strong">
+                  <div className="flex items-start justify-between gap-2">
+                    <h3 className="font-medium">{p.title}</h3>
+                    {p.source === 'quick_validate' && <Badge>From Quick Validate</Badge>}
+                  </div>
+                  <p className="mt-1 line-clamp-2 text-sm text-muted">{p.idea}</p>
+                  <p className="mt-2 text-xs text-subtle">Updated {relativeTime(p.updated_at)} ago</p>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        )}
+        {(projects.data?.length ?? 0) > 4 && <Link href="/app/think" className="text-sm text-muted hover:text-fg">All projects →</Link>}
+      </section>
 
-        <div className="space-y-5">
-          <ProfileCompletionCard compact />
-          <Card className="p-5">
-            <div className="flex items-center justify-between"><h2 className="text-sm font-semibold">Pending requests</h2><Link href="/app/connections" className="text-xs text-muted hover:text-fg">Open</Link></div>
-            <p className="mt-2 text-2xl font-semibold tabular-nums">{requests.data?.length ?? '–'}</p>
-          </Card>
-          <Card className="p-5">
-            <div className="flex items-center justify-between"><h2 className="text-sm font-semibold">Think projects</h2><Link href="/app/think" className="text-xs text-muted hover:text-fg">Open</Link></div>
-            {(projects.data ?? []).length === 0 ? <p className="mt-2 text-sm text-muted">No projects yet.</p> : (
-              <ul className="mt-2 space-y-1 text-sm">{projects.data!.slice(0, 4).map((p) => <li key={p.id}><Link href={`/app/think/${p.id}`} className="text-fg hover:underline">{p.title}</Link></li>)}</ul>
-            )}
-          </Card>
-          <Card className="p-5">
-            <div className="flex items-center justify-between"><h2 className="text-sm font-semibold">Recent connections</h2><Link href="/app/connections" className="text-xs text-muted hover:text-fg">All</Link></div>
-            {(connections.data ?? []).length === 0 ? <p className="mt-2 text-sm text-muted">None yet.</p> : (
-              <ul className="mt-2 space-y-2">{connections.data!.slice(0, 4).map((c) => (
-                <li key={c.user_id}><Link href={`/app/u/${c.user_id}`} className="flex items-center gap-2 text-sm hover:underline"><Avatar name={c.display_name} src={avatar(c.avatar_path)} size={24} />{c.display_name}</Link></li>
-              ))}</ul>
-            )}
-          </Card>
-          <InviteBox />
+      {/* CONNECT — secondary */}
+      <section aria-labelledby="connect-h" className="space-y-4 border-t border-line pt-8">
+        <div>
+          <h2 id="connect-h" className="text-lg font-semibold">Connect</h2>
+          <p className="text-sm text-muted">Find co-founders and startup builders who complement you.</p>
         </div>
-      </div>
+        {!onboarded ? (
+          <Card className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between">
+            <div className="text-sm">
+              <div className="font-medium text-fg">Set up your profile to start connecting</div>
+              <div className="text-muted">About five minutes. Your Think projects stay private either way.</div>
+            </div>
+            <Link href="/app/onboarding" className={buttonClass('secondary')}>Set up profile</Link>
+          </Card>
+        ) : connect.loading ? <Skeleton className="h-40" /> : connect.error ? <Alert tone="danger">Could not load Connect right now.</Alert> : connect.data && (
+          <div className="grid gap-6 lg:grid-cols-[1fr_300px]">
+            <div className="space-y-6">
+              {connect.data.requests.length > 0 && (
+                <Card className="p-4 text-sm"><Link href="/app/connections" className="font-medium text-accent hover:underline">
+                  Respond to {connect.data.requests.length} connection request{connect.data.requests.length > 1 ? 's' : ''} →</Link></Card>
+              )}
+              <Section title="Recommended for you" href="/app/discover">
+                {connect.data.recs.length === 0 ? (
+                  <EmptyState title="No strong matches yet" body="The network is still growing. Search with filters, or invite people you would like to build with." action={<Link href="/app/discover" className={buttonClass('secondary')}>Search people</Link>} />
+                ) : <ul className="grid gap-4 sm:grid-cols-2">{connect.data.recs.slice(0, 2).map((p) => <PersonCard key={p.id} person={p} />)}</ul>}
+              </Section>
+              {connect.data.convs.length > 0 && (
+                <Section title="Recent conversations" href="/app/messages">
+                  <ul className="divide-y divide-line rounded-lg border border-line bg-raised">
+                    {connect.data.convs.slice(0, 3).map((c) => (
+                      <li key={c.conversation_id}><Link href={`/app/messages/${c.conversation_id}`} className="flex items-center gap-3 px-4 py-3 hover:bg-surface">
+                        <Avatar name={c.peer_name} src={avatar(c.peer_avatar)} size={32} />
+                        <div className="min-w-0 flex-1"><div className="text-sm font-medium">{c.peer_name}</div><div className="truncate text-sm text-muted">{c.last_message ?? 'Say hello'}</div></div>
+                        {c.unread_count > 0 && <span className="rounded-full bg-accent px-1.5 text-xs text-on-accent">{c.unread_count}</span>}
+                      </Link></li>
+                    ))}
+                  </ul>
+                </Section>
+              )}
+            </div>
+            <div className="space-y-5"><ProfileCompletionCard compact /><InviteBox /></div>
+          </div>
+        )}
+      </section>
     </div>
   );
 }

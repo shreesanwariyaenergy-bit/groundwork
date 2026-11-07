@@ -1,6 +1,6 @@
 'use client';
-import { useParams, useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
+import { Suspense, useState } from 'react';
 import { ERROR_MESSAGES, followupSchema, friendlyError, reportToMarkdown, type ThinkAnalysis, type ThinkMessage } from '@groundwork/shared';
 import { Alert, Avatar, Button, Card, EmptyState, ErrorState, Modal, Select, Skeleton, Spinner, Textarea } from '@/components/ui';
 import { useApp, useAsync } from '@/components/app/AppProvider';
@@ -19,10 +19,11 @@ function errorText(code: string) {
   return ERROR_MESSAGES[code] ?? (code === 'analysis_in_progress' ? 'An analysis is already running for this project.' : code === 'idea_too_short' ? 'Describe the idea in more detail first.' : ERROR_MESSAGES.ai_unavailable!);
 }
 
-export default function ThinkProjectPage() {
+function ThinkProject() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const { api, user, avatar } = useApp();
+  const justSaved = useSearchParams().get('saved') === '1';
   const sb = getBrowserClient();
   const { data, loading, error, reload } = useAsync(async () => {
     const [project, analyses, messages, status] = await Promise.all([api.thinkProject(id), api.analyses(id), api.thinkMessages(id), api.thinkStatus()]);
@@ -89,6 +90,7 @@ export default function ThinkProjectPage() {
         </div>
       </div>
 
+      {justSaved && <Alert tone="accent" title="Saved to your workspace">Your quick review is now a private Think project. Edit the idea, run the full analysis, or ask follow-up questions.</Alert>}
       <Card className="p-5">
         <h2 className="text-sm font-semibold">The idea</h2>
         <p className="mt-2 whitespace-pre-line text-[15px] leading-relaxed">{project.idea}</p>
@@ -103,14 +105,14 @@ export default function ThinkProjectPage() {
         <Card className="p-5">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="text-sm">
-              <div className="font-medium">{completed.length ? 'Generate an updated report' : 'Analyse this idea'}</div>
+              <div className="font-medium">{current?.report_kind === 'quick' ? 'Go deeper: run the full 20-part analysis' : completed.length ? 'Generate an updated report' : 'Analyse this idea'}</div>
               <div className="text-muted">
                 {status.ai_available ? `AI analyses left today: ${Math.max(0, status.analyses_per_day - status.analyses_used_today)} of ${status.analyses_per_day}.` : 'AI analysis is unavailable right now.'}
               </div>
             </div>
             <div className="flex gap-2">
               <Button onClick={() => run('analyze')} loading={running === 'analyze'} disabled={!!running || !status.ai_available || status.analyses_used_today >= status.analyses_per_day}>Run AI analysis</Button>
-              <Button variant="secondary" onClick={() => run('checklist')} loading={running === 'checklist'} disabled={!!running}>Use basic checklist</Button>
+              <Button variant="secondary" onClick={() => run('checklist')} loading={running === 'checklist'} disabled={!!running}>{status.ai_available ? 'Use guided checklist' : 'Run guided 20-part checklist'}</Button>
             </div>
           </div>
           {running === 'analyze' && <p className="mt-3 flex items-center gap-2 text-sm text-muted"><Spinner className="size-4" />Analysing — this usually takes 20–60 seconds. You can keep this page open.</p>}
@@ -128,7 +130,7 @@ export default function ThinkProjectPage() {
             <h2 className="text-lg font-semibold">Report</h2>
             {completed.length > 1 && (
               <Select className="w-auto" value={current.id} onChange={(e) => setSelected(e.target.value)} aria-label="Report version">
-                {completed.map((a, i) => <option key={a.id} value={a.id}>{i === 0 ? 'Latest' : `Version ${completed.length - i}`} · {new Date(a.created_at).toLocaleString()} · {a.mode === 'ai' ? 'AI' : 'Checklist'}</option>)}
+                {completed.map((a, i) => <option key={a.id} value={a.id}>{i === 0 ? 'Latest' : `Version ${completed.length - i}`} · {a.report_kind === 'quick' ? 'Quick review' : 'Full'} · {a.mode === 'ai' ? 'AI' : 'Guided'} · {new Date(a.created_at).toLocaleDateString()}</option>)}
               </Select>
             )}
           </div>
@@ -233,4 +235,8 @@ function ShareModal({ open, onClose, projectId }: { open: boolean; onClose: () =
       </div>
     </Modal>
   );
+}
+
+export default function ThinkProjectPage() {
+  return <Suspense><ThinkProject /></Suspense>;
 }

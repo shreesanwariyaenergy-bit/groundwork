@@ -27,15 +27,24 @@ export function Icon({ name, className = 'size-5' }: { name: IconName; className
   );
 }
 
-const NAV: { href: string; label: string; icon: IconName; mobile?: boolean }[] = [
-  { href: '/app', label: 'Home', icon: 'home', mobile: true },
-  { href: '/app/discover', label: 'Discover', icon: 'discover', mobile: true },
-  { href: '/app/think', label: 'Think', icon: 'think', mobile: true },
-  { href: '/app/connections', label: 'Connections', icon: 'connections' },
-  { href: '/app/messages', label: 'Messages', icon: 'messages', mobile: true },
-  { href: '/app/profile', label: 'Profile', icon: 'profile', mobile: true },
-  { href: '/app/settings', label: 'Settings', icon: 'settings' },
+type NavItem = { href: string; label: string; icon: IconName; mobile?: string };
+/** Pillar-shaped navigation. Capital and Test get entries only once they are functional. */
+const NAV_GROUPS: { label?: string; items: NavItem[] }[] = [
+  { items: [
+    { href: '/app', label: 'Home', icon: 'home', mobile: 'Home' },
+    { href: '/app/think', label: 'Think', icon: 'think', mobile: 'Think' },
+  ] },
+  { label: 'Connect', items: [
+    { href: '/app/discover', label: 'Discover', icon: 'discover', mobile: 'Connect' },
+    { href: '/app/connections', label: 'Connections', icon: 'connections' },
+    { href: '/app/messages', label: 'Messages', icon: 'messages', mobile: 'Messages' },
+  ] },
+  { label: 'You', items: [
+    { href: '/app/profile', label: 'Profile', icon: 'profile', mobile: 'Profile' },
+    { href: '/app/settings', label: 'Settings', icon: 'settings' },
+  ] },
 ];
+const NAV = NAV_GROUPS.flatMap((g) => g.items);
 
 function isActive(path: string, href: string) {
   return href === '/app' ? path === '/app' : path === href || path.startsWith(href + '/');
@@ -77,13 +86,18 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <aside className="fixed inset-y-0 left-0 hidden w-60 flex-col border-r border-line bg-surface px-3 py-4 lg:flex">
         <div className="px-2 pb-6"><Logo href="/app" /></div>
         <nav className="flex-1 space-y-0.5" aria-label="App">
-          {NAV.map((n) => (
-            <Link key={n.href} href={n.href}
-              className={cn('flex h-10 items-center gap-3 rounded-md px-3 text-sm', isActive(path, n.href) ? 'bg-raised font-medium text-fg shadow-sm border border-line' : 'text-muted hover:text-fg')}>
-              <Icon name={n.icon} />
-              <span className="flex-1">{n.label}</span>
-              {badge(n.href) > 0 && <span className="rounded-full bg-accent px-1.5 text-xs font-medium text-on-accent">{badge(n.href)}</span>}
-            </Link>
+          {NAV_GROUPS.map((g, gi) => (
+            <div key={gi} className={gi ? 'pt-4' : ''}>
+              {g.label && <div className="px-3 pb-1 text-[11px] font-semibold uppercase tracking-wider text-subtle">{g.label}</div>}
+              {g.items.map((n) => (
+                <Link key={n.href} href={n.href} aria-current={isActive(path, n.href) ? 'page' : undefined}
+                  className={cn('flex h-10 items-center gap-3 rounded-md px-3 text-sm', isActive(path, n.href) ? 'bg-raised font-medium text-fg shadow-sm border border-line' : 'text-muted hover:text-fg')}>
+                  <Icon name={n.icon} />
+                  <span className="flex-1">{n.label}</span>
+                  {badge(n.href) > 0 && <span className="rounded-full bg-accent px-1.5 text-xs font-medium text-on-accent">{badge(n.href)}<span className="sr-only"> unread</span></span>}
+                </Link>
+              ))}
+            </div>
           ))}
           {isStaff && (
             <Link href="/admin" className="mt-4 flex h-10 items-center gap-3 rounded-md px-3 text-sm text-muted hover:text-fg">
@@ -131,9 +145,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       {/* Mobile browser bottom nav */}
       <nav className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-5 border-t border-line bg-bg pb-[env(safe-area-inset-bottom)] lg:hidden" aria-label="App mobile">
         {NAV.filter((n) => n.mobile).map((n) => (
-          <Link key={n.href} href={n.href} className={cn('relative flex h-16 flex-col items-center justify-center gap-1 text-[11px]', isActive(path, n.href) ? 'text-fg' : 'text-subtle')}>
+          <Link key={n.href} href={n.href} aria-current={isActive(path, n.href) ? 'page' : undefined}
+            className={cn('relative flex h-16 flex-col items-center justify-center gap-1 text-[11px]', (isActive(path, n.href) || (n.mobile === 'Connect' && isActive(path, '/app/connections'))) ? 'text-fg' : 'text-subtle')}>
             <Icon name={n.icon} />
-            {n.label}
+            {n.mobile}
             {badge(n.href) > 0 && <span className="absolute right-[calc(50%-18px)] top-2 size-2 rounded-full bg-accent" />}
           </Link>
         ))}

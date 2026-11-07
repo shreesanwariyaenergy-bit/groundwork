@@ -2,10 +2,11 @@
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useState } from 'react';
-import { signInSchema, firstError } from '@groundwork/shared';
+import { email as emailSchema, signInSchema, firstError } from '@groundwork/shared';
 import { Alert, Button, Field, Input } from '@/components/ui';
 import { GoogleButton } from '@/components/app/GoogleButton';
 import { getBrowserClient } from '@/lib/supabase/client';
+import { SITE_URL } from '@/lib/env';
 
 function safeNext(v: string | null) {
   return v && v.startsWith('/') && !v.startsWith('//') ? v : '/app';
@@ -22,6 +23,19 @@ export function LoginForm() {
     params.get('error') ? 'That sign-in link is invalid or has expired.' : null,
   );
   const [loading, setLoading] = useState(false);
+  const [linkSent, setLinkSent] = useState(false);
+
+  async function sendLink() {
+    const p = emailSchema.safeParse(email);
+    if (!p.success) return setError('Enter your email above, then request a link.');
+    setLoading(true); setError(null);
+    await getBrowserClient().auth.signInWithOtp({
+      email: p.data,
+      options: { shouldCreateUser: false, emailRedirectTo: `${SITE_URL}/auth/callback?next=${encodeURIComponent(next)}` },
+    });
+    setLoading(false);
+    setLinkSent(true); // same message whether or not the account exists
+  }
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -47,9 +61,11 @@ export function LoginForm() {
         <form onSubmit={submit} className="space-y-4" noValidate>
           {error && <Alert tone="danger">{error}</Alert>}
           <Field label="Email" htmlFor="email"><Input id="email" type="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} required /></Field>
-          <Field label="Password" htmlFor="password"><Input id="password" type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} required /></Field>
+          <Field label="Password" htmlFor="password" hint="Signed up with a link? Use “Email me a sign-in link”."><Input id="password" type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} required /></Field>
           <div className="flex justify-end"><Link href="/forgot-password" className="text-sm text-muted hover:text-fg">Forgot password?</Link></div>
           <Button type="submit" className="w-full" loading={loading}>Log in</Button>
+          <Button type="button" variant="secondary" className="w-full" disabled={loading} onClick={sendLink}>Email me a sign-in link instead</Button>
+          {linkSent && <Alert tone="accent">If an account exists for that email, a sign-in link is on its way. Open it on this device.</Alert>}
         </form>
         <p className="text-center text-sm text-muted">New here? <Link href="/register" className="font-medium text-accent">Create an account</Link></p>
       </div>

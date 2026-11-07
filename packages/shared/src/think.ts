@@ -418,7 +418,7 @@ export function buildQuickGuidedReport(inputs: QuickInputs): ThinkReport {
         ? `You named ${inputs.customer} as the customer. The next step is to confirm they feel this problem often and badly enough to act.`
         : 'You have not named a specific customer yet. A narrow first customer group makes every later decision easier.',
       points: [
-        { text: `${who[0]!.toUpperCase()}${who.slice(1)} experience this problem regularly — not just occasionally.`, label: 'assumption' },
+        { text: `How often does this happen to ${who} — daily, weekly or a few times a year? Frequent, painful problems are easier to sell.`, label: 'question' },
         inputs.alternatives
           ? { text: `Today they rely on: ${inputs.alternatives}. Your solution must be clearly better than this for them to switch.`, label: 'hypothesis' }
           : { text: 'What do they do about the problem today? Even "nothing" or a spreadsheet is your real competition.', label: 'question' },

@@ -1,125 +1,138 @@
 import Link from 'next/link';
 import { buttonClass } from '@/components/ui/styles';
-import { DiscoveryPreview, MessagingPreview, ProfilePreview, ThinkPreview } from '@/components/marketing/Previews';
+import { QuickValidateHero } from '@/components/think/QuickValidate';
+import { ThinkPreview } from '@/components/marketing/Previews';
 
-const CAPABILITIES = [
-  {
-    title: 'Find a co-founder',
-    body: 'Business founders meet technical builders, and technical founders meet people who can sell, operate and grow. Recommendations favour people who complement you — not copies of you.',
-    href: '/founder-matchmaking',
-  },
-  {
-    title: 'Discover professional collaborators',
-    body: 'AI/ML engineers, developers, designers, product and growth people who want to work with early-stage startups — part-time, advisory or as future teammates.',
-    href: '/professional-matchmaking',
-  },
-  {
-    title: 'Validate ideas with Think',
-    body: 'A structured workspace that examines your idea across 20 areas — from customer pain to risks, experiments and next steps — and labels what is an assumption versus a fact.',
-    href: '/think-workspace',
-  },
+const QUICK_PARTS = [
+  ['Idea snapshot', 'Your idea restated plainly — who it is for, what it does, and why now.'],
+  ['Customer and problem', 'Who most likely feels the problem, how badly, and what they do about it today.'],
+  ['Biggest risks', 'The few things most likely to stop this idea, most serious first.'],
+  ['Assumptions to test', 'What the idea is betting on, written so each belief can be tested.'],
+  ['Next steps', 'Two or three cheap experiments for the next two weeks, each with a clear signal.'],
 ];
 
-const STEPS = [
-  ['Create your profile', 'Say who you are, what you can contribute and how much time you have.'],
-  ['Describe what you are building — or want to build', 'Founders describe the venture and the roles they need. Builders describe where they want to contribute.'],
-  ['Discover relevant people', 'See recommendations with clear reasons, or search with filters for skills, stage, availability and timezone.'],
-  ['Connect and start collaborating', 'Send a short, personal request. Messaging opens when both people agree.'],
-  ['Use Think to sharpen the idea', 'Stress-test the idea, plan validation experiments and keep everything private unless you choose to share.'],
+const PILLARS: { name: string; status: string; tone: 'live' | 'members' | 'planned'; body: string; href?: string }[] = [
+  { name: 'Think', status: 'Available now', tone: 'live', href: '/validate',
+    body: 'Validate startup ideas with a structured, honest AI workspace — from a five-minute quick review to a full analysis.' },
+  { name: 'Connect', status: 'For members', tone: 'members', href: '/founder-matchmaking',
+    body: 'Find co-founders and startup builders whose skills complement yours, with clear reasons for every match.' },
+  { name: 'Capital', status: 'Planned', tone: 'planned',
+    body: 'A considered way for founders and investors to find each other around real progress. Not available yet.' },
+  { name: 'Test', status: 'Planned', tone: 'planned',
+    body: 'Get your product in front of the right early testers and turn feedback into validated assumptions. Not available yet.' },
 ];
 
 const TRUST = [
-  ['Private by default', 'Think projects are visible only to you. Nothing is shared with matches unless you explicitly share it with a connection.'],
-  ['You control your visibility', 'Be discoverable, visible to connections only, or paused. Change it any time.'],
-  ['Consent-based connections', 'People can only message each other after a request is accepted. Requests are rate-limited.'],
-  ['Report and block', 'Block anyone instantly. Reports are reviewed by people, and every moderation action is logged.'],
-  ['Your data, your call', 'Export everything you have shared, or delete your account and associated data from the app or the web.'],
+  ['Private by default', 'Your ideas are never shown to other people. Quick reviews are deleted after 7 days unless you save them.'],
+  ['Honest about uncertainty', 'Every point is labelled as an assumption, hypothesis, estimate or recommendation. No invented market sizes.'],
+  ['No fake traction', 'We will never show invented users, testimonials or numbers to make the network look bigger.'],
+  ['Your data, your call', 'Export everything or delete your account at any time — on the web or in the Android app.'],
 ];
 
 export default function HomePage() {
   return (
     <>
       <section className="border-b border-line">
-        <div className="mx-auto grid max-w-6xl items-center gap-12 px-4 py-16 sm:px-6 md:py-24 lg:grid-cols-[1.1fr_1fr]">
+        <div className="mx-auto grid max-w-6xl items-center gap-10 px-4 py-14 sm:px-6 md:py-20 lg:grid-cols-[1.05fr_1fr]">
           <div>
-            <p className="text-sm font-medium text-accent">For founders and the people who build with them</p>
-            <h1 className="mt-3 text-4xl font-semibold leading-[1.1] tracking-tight text-fg sm:text-5xl">
-              Find your people.<br />Validate your idea.<br />Build what matters.
+            <p className="text-sm font-medium text-accent">Groundwork Think</p>
+            <h1 className="mt-3 text-4xl font-semibold leading-[1.08] tracking-tight text-fg sm:text-5xl">
+              Validate your startup idea before you build it.
             </h1>
             <p className="mt-5 max-w-xl text-lg leading-relaxed text-muted">
-              A focused network for ambitious founders, co-founders and startup builders. Discover people whose skills complement yours,
-              and pressure-test your startup idea with a structured AI workspace.
+              Get a candid, five-part review of your idea in minutes: who has the problem, what could kill it,
+              what you are betting on, and exactly what to test next.
             </p>
-            <div className="mt-8 flex flex-wrap gap-3">
-              <Link href="/register" className={buttonClass('primary', 'lg')}>Join the network</Link>
-              <Link href="/think-workspace" className={buttonClass('secondary', 'lg')}>Explore Think</Link>
-            </div>
-            <p className="mt-4 text-sm text-subtle">Free to join. Adults 18+. Available on the web and Android.</p>
+            <ul className="mt-6 space-y-2 text-sm text-muted">
+              <li className="flex gap-2"><span className="text-accent" aria-hidden>✓</span>Free, no account needed for your first reviews</li>
+              <li className="flex gap-2"><span className="text-accent" aria-hidden>✓</span>Every point labelled — assumption, hypothesis or recommendation</li>
+              <li className="flex gap-2"><span className="text-accent" aria-hidden>✓</span>Save it and go deeper in your private workspace</li>
+            </ul>
           </div>
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
-            <DiscoveryPreview />
-            <div className="space-y-4"><ThinkPreview /></div>
-          </div>
+          <QuickValidateHero />
         </div>
       </section>
 
-      <section className="mx-auto max-w-6xl px-4 py-16 sm:px-6">
-        <h2 className="text-2xl font-semibold tracking-tight">Two questions every founder has to answer</h2>
-        <p className="mt-2 max-w-2xl text-muted">Is this idea worth pursuing, and what should I validate next? Who are the right people to build it with?</p>
-        <div className="mt-10 grid gap-6 md:grid-cols-3">
-          {CAPABILITIES.map((c) => (
-            <Link key={c.title} href={c.href} className="group rounded-lg border border-line p-6 transition-colors hover:border-line-strong">
-              <h3 className="font-semibold text-fg">{c.title}</h3>
-              <p className="mt-2 text-sm leading-relaxed text-muted">{c.body}</p>
-              <span className="mt-4 inline-block text-sm font-medium text-accent group-hover:underline">Learn more →</span>
-            </Link>
+      <section className="mx-auto max-w-6xl px-4 py-16 sm:px-6" aria-labelledby="parts">
+        <h2 id="parts" className="text-2xl font-semibold tracking-tight">What your quick review covers</h2>
+        <p className="mt-2 max-w-2xl text-muted">Five short parts, designed to tell you what to do next — not to flatter you.</p>
+        <ol className="mt-10 grid gap-x-8 gap-y-6 sm:grid-cols-2 lg:grid-cols-5">
+          {QUICK_PARTS.map(([t, b], i) => (
+            <li key={t} className="border-t border-line pt-4">
+              <span className="text-sm font-medium tabular-nums text-subtle">{String(i + 1).padStart(2, '0')}</span>
+              <h3 className="mt-1 font-medium text-fg">{t}</h3>
+              <p className="mt-1 text-sm leading-relaxed text-muted">{b}</p>
+            </li>
           ))}
-        </div>
+        </ol>
+        <div className="mt-10"><Link href="/validate" className={buttonClass('primary', 'lg')}>Validate an idea</Link></div>
       </section>
 
       <section className="border-y border-line bg-surface">
-        <div className="mx-auto grid max-w-6xl gap-12 px-4 py-16 sm:px-6 lg:grid-cols-2">
+        <div className="mx-auto grid max-w-6xl items-center gap-12 px-4 py-16 sm:px-6 lg:grid-cols-2">
           <div>
-            <h2 className="text-2xl font-semibold tracking-tight">How it works</h2>
-            <ol className="mt-8 space-y-6">
-              {STEPS.map(([t, b], i) => (
-                <li key={t} className="flex gap-4">
-                  <span className="flex size-8 shrink-0 items-center justify-center rounded-full border border-line-strong bg-raised text-sm font-medium">{i + 1}</span>
-                  <div>
-                    <h3 className="font-medium text-fg">{t}</h3>
-                    <p className="mt-1 text-sm text-muted">{b}</p>
-                  </div>
-                </li>
+            <h2 className="text-2xl font-semibold tracking-tight">Go deeper in your private Think workspace</h2>
+            <p className="mt-3 text-muted">Save a quick review with just your email, then turn it into a full analysis when you are ready.</p>
+            <ul className="mt-6 space-y-4 text-sm">
+              {[
+                ['A full 20-part analysis', 'Market structure, competitors, business models, feasibility, MVP scope, interview questions and go-to-market.'],
+                ['Follow-up questions', 'Ask about pricing, risks or experiments, in the context of your idea.'],
+                ['Versions and export', 'Revisit earlier reports as your idea changes; export to Markdown or PDF.'],
+                ['Share only when you choose', 'Share a project read-only with a specific connection, and revoke it any time.'],
+              ].map(([t, b]) => (
+                <li key={t}><div className="font-medium text-fg">{t}</div><div className="text-muted">{b}</div></li>
               ))}
-            </ol>
+            </ul>
+            <Link href="/think-workspace" className="mt-8 inline-block text-sm font-medium text-accent hover:underline">How Think works →</Link>
           </div>
-          <div className="grid content-start gap-4 sm:grid-cols-2">
-            <ProfilePreview />
-            <MessagingPreview />
-          </div>
+          <ThinkPreview />
         </div>
       </section>
 
-      <section className="mx-auto max-w-6xl px-4 py-16 sm:px-6">
-        <h2 className="text-2xl font-semibold tracking-tight">Built on trust</h2>
-        <p className="mt-2 max-w-2xl text-muted">Startup ideas are sensitive and introductions are personal. The product is designed around consent and control.</p>
-        <dl className="mt-10 grid gap-x-8 gap-y-6 sm:grid-cols-2 lg:grid-cols-3">
-          {TRUST.map(([t, b]) => (
-            <div key={t} className="border-t border-line pt-4">
-              <dt className="font-medium text-fg">{t}</dt>
-              <dd className="mt-1 text-sm text-muted">{b}</dd>
-            </div>
-          ))}
-        </dl>
+      <section className="mx-auto max-w-6xl px-4 py-16 sm:px-6" aria-labelledby="ecosystem">
+        <h2 id="ecosystem" className="text-2xl font-semibold tracking-tight">One place to take an idea from first doubt to first customers</h2>
+        <p className="mt-2 max-w-2xl text-muted">
+          Groundwork is being built as four connected parts that share one profile and one record of your startup.
+          We are starting with Think.
+        </p>
+        <ul className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {PILLARS.map((p) => {
+            const inner = (
+              <>
+                <div className="flex items-center justify-between gap-2">
+                  <h3 className="font-semibold text-fg">{p.name}</h3>
+                  <span className={`rounded-sm px-1.5 py-0.5 text-xs font-medium ${p.tone === 'live' ? 'bg-accent-soft text-accent' : p.tone === 'members' ? 'bg-surface text-fg border border-line' : 'bg-surface text-subtle'}`}>{p.status}</span>
+                </div>
+                <p className="mt-2 text-sm leading-relaxed text-muted">{p.body}</p>
+              </>
+            );
+            return (
+              <li key={p.name} className={`rounded-lg border p-5 ${p.tone === 'planned' ? 'border-dashed border-line-strong' : 'border-line'}`}>
+                {p.href ? <Link href={p.href} className="block hover:opacity-90">{inner}</Link> : inner}
+              </li>
+            );
+          })}
+        </ul>
+      </section>
+
+      <section className="border-t border-line bg-surface">
+        <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6">
+          <h2 className="text-2xl font-semibold tracking-tight">Built on trust</h2>
+          <dl className="mt-8 grid gap-x-8 gap-y-6 sm:grid-cols-2 lg:grid-cols-4">
+            {TRUST.map(([t, b]) => (
+              <div key={t} className="border-t border-line pt-4"><dt className="font-medium text-fg">{t}</dt><dd className="mt-1 text-sm text-muted">{b}</dd></div>
+            ))}
+          </dl>
+        </div>
       </section>
 
       <section className="border-t border-line">
         <div className="mx-auto flex max-w-6xl flex-col items-start justify-between gap-6 px-4 py-14 sm:px-6 md:flex-row md:items-center">
           <div>
-            <h2 className="text-2xl font-semibold tracking-tight">Start with your profile. It takes a few minutes.</h2>
-            <p className="mt-1 text-muted">We are early. The network grows with every founder and builder who joins and invites a collaborator.</p>
+            <h2 className="text-2xl font-semibold tracking-tight">Have an idea? Find out what to test first.</h2>
+            <p className="mt-1 text-muted">It takes a couple of minutes and costs nothing.</p>
           </div>
-          <Link href="/register" className={buttonClass('primary', 'lg')}>Join the network</Link>
+          <Link href="/validate" className={buttonClass('primary', 'lg')}>Validate my idea</Link>
         </div>
       </section>
     </>

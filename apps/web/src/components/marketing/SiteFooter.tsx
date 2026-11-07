@@ -3,7 +3,7 @@ import { BRAND } from '@groundwork/shared';
 import { Logo } from './Logo';
 
 const COLS = [
-  { title: 'Product', links: [['/how-it-works', 'How it works'], ['/founder-matchmaking', 'Founder matchmaking'], ['/professional-matchmaking', 'Professional matchmaking'], ['/think-workspace', 'Think workspace']] },
+  { title: 'Product', links: [['/validate', 'Quick Validate'], ['/think-workspace', 'Think workspace'], ['/founder-matchmaking', 'Connect: co-founders'], ['/professional-matchmaking', 'Connect: professionals'], ['/how-it-works', 'How it works']] },
   { title: 'Company', links: [['/about', 'About'], ['/faq', 'FAQ'], ['/contact', 'Contact']] },
   { title: 'Legal', links: [['/privacy', 'Privacy Policy'], ['/terms', 'Terms of Service'], ['/guidelines', 'Community Guidelines'], ['/delete-account', 'Delete your account']] },
 ];
@@ -29,7 +29,7 @@ export function SiteFooter() {
       <div className="border-t border-line">
         <div className="mx-auto flex max-w-6xl flex-wrap justify-between gap-2 px-4 py-5 text-xs text-subtle sm:px-6">
           <span>© {new Date().getFullYear()} {BRAND.name}. All rights reserved.</span>
-          <span>Available on the web and Android.</span>
+          <span>Think · Connect · Capital (planned) · Test (planned)</span>
         </div>
       </div>
     </footer>
