@@ -6,9 +6,10 @@
    `notify-dispatch` deployed; the full RLS/logic test suite passed against the live database (in a rolled-back
    transaction). Still to do in the dashboard: Auth URLs/SMTP/Google, the notifications Database Webhook, secrets
    (`NOTIFY_WEBHOOK_SECRET`, `APP_URL`, `ALLOWED_ORIGINS`, AI keys) — see `docs/SETUP_AND_DEPLOYMENT.md`.
-2. **GitHub repository not created / pushed.** The GitHub token in this environment is invalid. The code is committed
-   to a local git repository (`main`). Create an empty repo and push, or re-authenticate GitHub for this environment.
-3. **Web/Android not deployed.** No Vercel project, EAS project or Play listing was created yet.
+2. ~~GitHub repository not created.~~ **Done:** https://github.com/shreesanwariyaenergy-bit/groundwork (`main`).
+3. **Website deployed** to Vercel project `groundwork` (root `apps/web`, Node 22) — production URL
+   https://groundwork-shreesanwariyaenergy-bit.vercel.app ; every push to `main` deploys automatically. Vercel
+   Authentication protects preview deployments only. **Android not yet built** (no EAS project or Play listing).
 
 ## Product / technical limitations
 * Database logic and RLS are verified on the live project; real sign-up/email, Realtime, Storage uploads and AI calls through the deployed functions are not yet exercised end-to-end (see `docs/TESTING.md`).
