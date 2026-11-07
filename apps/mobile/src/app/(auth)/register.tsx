@@ -5,7 +5,7 @@ import { Pressable, View } from 'react-native';
 import { fieldErrors, signUpSchema } from '@groundwork/shared';
 import { Button, Input, Notice, Screen, Text } from '@/components/ui';
 import { SITE_URL } from '@/lib/config';
-import { signInWithGoogle } from '@/lib/oauth';
+import { signInWithGoogle, useGoogleEnabled } from '@/lib/oauth';
 import { supabase } from '@/lib/supabase';
 import { useTheme } from '@/lib/theme';
 
@@ -28,6 +28,7 @@ export default function Register() {
   const [serverError, setServerError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [sent, setSent] = useState(false);
+  const google = useGoogleEnabled();
   const open = (p: string) => SITE_URL && WebBrowser.openBrowserAsync(SITE_URL + p);
 
   if (sent) return (
@@ -42,8 +43,10 @@ export default function Register() {
     <Screen edges={['top', 'bottom']}>
       <Text variant="title">Join the network</Text>
       {serverError && <Notice tone="danger">{serverError}</Notice>}
-      <Button title="Sign up with Google" variant="secondary" onPress={async () => { const r = await signInWithGoogle(); if (r === 'error') setServerError('Google sign-in is not available right now.'); }} />
-      <Text variant="caption" style={{ textAlign: 'center' }}>or</Text>
+      {google && (<>
+        <Button title="Sign up with Google" variant="secondary" onPress={async () => { const r = await signInWithGoogle(); if (r === 'error') setServerError('Google sign-in is not available right now.'); }} />
+        <Text variant="caption" style={{ textAlign: 'center' }}>or</Text>
+      </>)}
       <Input label="Full name" value={f.fullName} onChangeText={(v) => setF({ ...f, fullName: v })} autoComplete="name" error={errors.fullName} />
       <Input label="Email" value={f.email} onChangeText={(v) => setF({ ...f, email: v })} autoCapitalize="none" keyboardType="email-address" autoComplete="email" error={errors.email} />
       <Input label="Password" value={f.password} onChangeText={(v) => setF({ ...f, password: v })} secureTextEntry autoComplete="new-password" hint="At least 10 characters with letters and numbers." error={errors.password} />

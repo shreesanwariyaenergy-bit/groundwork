@@ -44,7 +44,6 @@ export function LoginForm() {
       <p className="mt-1 text-sm text-muted">Welcome back.</p>
       <div className="mt-6 space-y-4">
         <GoogleButton next={next} />
-        <div className="flex items-center gap-3 text-xs text-subtle"><span className="h-px flex-1 bg-line" />or<span className="h-px flex-1 bg-line" /></div>
         <form onSubmit={submit} className="space-y-4" noValidate>
           {error && <Alert tone="danger">{error}</Alert>}
           <Field label="Email" htmlFor="email"><Input id="email" type="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} required /></Field>

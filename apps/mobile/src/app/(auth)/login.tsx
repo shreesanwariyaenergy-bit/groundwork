@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { View } from 'react-native';
 import { signInSchema, firstError } from '@groundwork/shared';
 import { Button, Input, Notice, Screen, Text } from '@/components/ui';
-import { signInWithGoogle } from '@/lib/oauth';
+import { signInWithGoogle, useGoogleEnabled } from '@/lib/oauth';
 import { supabase } from '@/lib/supabase';
 import { useTheme } from '@/lib/theme';
 
@@ -13,16 +13,19 @@ export default function Login() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const google = useGoogleEnabled();
   return (
     <Screen edges={['top', 'bottom']}>
       <Text variant="title">Log in</Text>
       {error && <Notice tone="danger">{error}</Notice>}
-      <Button title="Continue with Google" variant="secondary" onPress={async () => {
-        setError(null);
-        const r = await signInWithGoogle();
-        if (r === 'error') setError('Google sign-in is not available right now.');
-      }} />
-      <Text variant="caption" style={{ textAlign: 'center' }}>or</Text>
+      {google && (<>
+        <Button title="Continue with Google" variant="secondary" onPress={async () => {
+          setError(null);
+          const r = await signInWithGoogle();
+          if (r === 'error') setError('Google sign-in is not available right now.');
+        }} />
+        <Text variant="caption" style={{ textAlign: 'center' }}>or</Text>
+      </>)}
       <Input label="Email" value={email} onChangeText={setEmail} autoCapitalize="none" autoComplete="email" keyboardType="email-address" textContentType="emailAddress" />
       <Input label="Password" value={password} onChangeText={setPassword} secureTextEntry autoComplete="current-password" textContentType="password" />
       <Button title="Log in" loading={loading} onPress={async () => {

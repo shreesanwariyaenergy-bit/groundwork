@@ -56,7 +56,6 @@ export function RegisterForm() {
       <p className="mt-1 text-sm text-muted">Free for founders and startup builders.</p>
       <div className="mt-6 space-y-4">
         <GoogleButton next="/app/onboarding" label="Sign up with Google" />
-        <div className="flex items-center gap-3 text-xs text-subtle"><span className="h-px flex-1 bg-line" />or<span className="h-px flex-1 bg-line" /></div>
         <form onSubmit={submit} className="space-y-4" noValidate>
           {serverError && <Alert tone="danger">{serverError}</Alert>}
           <Field label="Full name" htmlFor="name" error={errors.fullName}><Input id="name" autoComplete="name" value={form.fullName} onChange={(e) => set('fullName', e.target.value)} /></Field>
