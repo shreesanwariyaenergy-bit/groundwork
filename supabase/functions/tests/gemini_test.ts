@@ -17,6 +17,7 @@ const cfg: ProviderConfig = {
   requests_per_minute: 10, daily_request_limit: 100, cost_per_1m_input_usd: 0, cost_per_1m_output_usd: 0, monthly_budget_usd: 0,
 };
 Deno.env.set('TEST_GEMINI_KEY', 'test-key-not-real');
+Deno.env.set('AI_RETRY_DELAYS_MS', '10,10');
 
 Deno.test('model detection', () => {
   assert(isGemini3Plus('gemini-3.8-flash'));
@@ -116,4 +117,29 @@ Deno.test('search is never sent to a non-Gemini provider', async () => {
 Deno.test('model JSON → assessment end to end', () => {
   const r = normalizeAssessment(extractJson('```json\n{"category":"saas","parameters":[{"key":"competition","rating":"weak","finding":"Crowded"}]}\n```'), { generatedBy: 'ai' });
   assertEquals(r.assessment!.parameters.find((p) => p.key === 'competition')!.rating, 'weak');
+});
+
+Deno.test('503 high demand → retried on the same model, then succeeds', async () => {
+  const paths: string[] = [];
+  const s = serve((req) => {
+    paths.push(new URL(req.url).pathname);
+    if (paths.length < 3) return Response.json({ error: { status: 'UNAVAILABLE', message: 'This model is currently experiencing high demand.' } }, { status: 503 });
+    return Response.json({ candidates: [{ finishReason: 'STOP', content: { parts: [{ text: '{}' }] } }] });
+  });
+  try {
+    const r = await complete({ ...cfg, base_url: s.url }, { system: 'S', messages: [{ role: 'user', content: 'U' }], json: true, maxOutputTokens: 100 });
+    assertEquals(paths.length, 3);
+    assert(paths.every((p) => p === paths[0]), 'same model every time');
+    assertEquals(r.text, '{}');
+  } finally { await s.close(); }
+});
+
+Deno.test('persistent 503 gives up after bounded retries', async () => {
+  let n = 0;
+  const s = serve(() => { n++; return Response.json({ error: { status: 'UNAVAILABLE', message: 'high demand' } }, { status: 503 }); });
+  try {
+    const e = await assertRejects(() => complete({ ...cfg, base_url: s.url }, { system: 'S', messages: [{ role: 'user', content: 'U' }], json: true, maxOutputTokens: 100 }), ProviderError);
+    assertEquals(e.code, 'provider_http_503');
+    assertEquals(n, 3);
+  } finally { await s.close(); }
 });

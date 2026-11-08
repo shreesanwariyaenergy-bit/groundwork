@@ -116,6 +116,11 @@ type GeminiResponse = {
   usageMetadata?: { promptTokenCount?: number; candidatesTokenCount?: number; thoughtsTokenCount?: number; toolUsePromptTokenCount?: number };
 };
 
+/** Back-off before retrying a temporarily overloaded model (tests may shorten via env). */
+function retryDelays(): number[] {
+  return (Deno.env.get('AI_RETRY_DELAYS_MS') ?? '3000,8000').split(',').map(Number).filter((n) => Number.isFinite(n) && n >= 0);
+}
+
 /** Gemini 3+ models: keep the default temperature (Google recommends 1.0) and use thinking levels. */
 export function isGemini3Plus(model: string): boolean {
   return /^gemini-([3-9]|\d{2,})/.test(model);
@@ -140,13 +145,27 @@ async function gemini(cfg: ProviderConfig, req: CompletionRequest): Promise<Omit
     },
   });
   const url = `${base}/models/${encodeURIComponent(model)}:generateContent`;
+  // Temporary overload (503/500) is retried on the SAME model only — never another or a paid provider.
+  const post = async (b: unknown): Promise<GeminiResponse> => {
+    const started = Date.now();
+    for (let attempt = 0; ; attempt++) {
+      try {
+        return (await postJson(url, { 'x-goog-api-key': key }, b, cfg.timeout_ms - (Date.now() - started))) as GeminiResponse;
+      } catch (e) {
+        const transient = e instanceof ProviderError && (e.code === 'provider_http_503' || e.code === 'provider_http_500');
+        const wait = retryDelays()[attempt];
+        if (!transient || wait === undefined || Date.now() - started + wait > cfg.timeout_ms * 0.6) throw e;
+        await new Promise((r) => setTimeout(r, wait));
+      }
+    }
+  };
   let data: GeminiResponse;
   try {
-    data = (await postJson(url, { 'x-goog-api-key': key }, body(true), cfg.timeout_ms)) as GeminiResponse;
+    data = await post(body(true));
   } catch (e) {
     // If the model rejects the reasoning setting, retry once without it (same model — never a different/paid one).
     if (e instanceof ProviderError && e.code === 'provider_http_400' && modern && req.reasoning && /thinking/i.test(e.detail ?? '')) {
-      data = (await postJson(url, { 'x-goog-api-key': key }, body(false), cfg.timeout_ms)) as GeminiResponse;
+      data = await post(body(false));
     } else throw e;
   }
   const cand = data.candidates?.[0];
